@@ -18,3 +18,10 @@ end
 function E.IsUnconscious(p)
  return IsValid(p) and p:Alive() and math.max(p:GetNW2Float("stem_unconscious",0),p:GetNW2Float("stem_unconscious_until",0))>CurTime()
 end
+-- Блокировка управления в обмороке выполняется и на клиенте, чтобы предсказание не дёргало камеру.
+hook.Add("StartCommand","STEmission.Unconscious",function(p,cmd)
+ if E.IsUnconscious(p) then cmd:ClearButtons();cmd:ClearMovement() end
+end)
+hook.Add("SetupMove","STEmission.Unconscious",function(p,mv)
+ if E.IsUnconscious(p) then mv:SetForwardSpeed(0);mv:SetSideSpeed(0);mv:SetUpSpeed(0);mv:SetMaxSpeed(0);mv:SetMaxClientSpeed(0) end
+end)

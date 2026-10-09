@@ -88,6 +88,10 @@ function S.HandleAction(ply,action,zone,index,to,ti)
         if d.weapon and realZone=="equipment" then
             local w=ply.StalkerWeapons and ply.StalkerWeapons[item.uid]
             if IsValid(w) then ply:SelectWeapon(d.weapon);ok=true else err="Оружие недоступно или занято игровым режимом" end
+        elseif realZone=="equipment" then
+            -- Повторное использование надетого снаряжения снимает его в рюкзак.
+            err="Рюкзак заполнен"
+            for i=1,40 do if not inv.grid[i] then ok,err=S.Move(inv,realZone,realIndex,"grid",i);break end end
         elseif d.OnUse then
             local success,result,reason=pcall(d.OnUse,ply,item,inv,d)
             if not success then ErrorNoHalt("[STALKER Inventory] OnUse: "..tostring(result).."\n");err="Ошибка обработчика предмета"

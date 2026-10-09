@@ -68,13 +68,57 @@ if SERVER then
   if p.StalkerInventory then p.StalkerInventory.dose=0;p:SetNW2Float("stalker_dose",0);p:SetNW2Float("stalker_rad_rate",0);STALKER_INV.SaveInventory(p) end
  end)
 else
+ -- Доза/фон приходят сетевыми переменными; любой HUD берёт их отсюда.
+ function R.GetDose(p) p=p or LocalPlayer();return IsValid(p) and p:GetNW2Float("stalker_dose",0) or 0 end
+ function R.GetRate(p) p=p or LocalPlayer();return IsValid(p) and p:GetNW2Float("stalker_rad_rate",0) or 0 end
+ R.Colors={ok=Color(112,158,91),warn=Color(214,170,64),danger=Color(190,70,50),text=Color(217,207,176),muted=Color(138,143,115)}
+ function R.Color(dose)
+  if dose>=R.Config.DamageThreshold then return R.Colors.danger end
+  return dose>=1 and R.Colors.warn or R.Colors.ok
+ end
+ -- Другой HUD (группировки) рисует радиацию сам и отмечает кадр, чтобы не было дублей.
+ function R.MarkExternalHUD() R.ExternalFrame=FrameNumber() end
+ local scale=1
+ local function fonts()
+  scale=math.Clamp(ScrH()/900,.85,1.8)
+  surface.CreateFont("STRAD.Title",{font="Tahoma",size=math.Round(14*scale),weight=700,extended=true})
+  surface.CreateFont("STRAD.Small",{font="Consolas",size=math.Round(11*scale),weight=500,extended=true})
+ end
+ fonts();hook.Add("OnScreenSizeChanged","STALKER.RadiationFonts",fonts)
+ local function px(n) return math.Round(n*scale) end
  local nextClick=0
+ local sounds={"player/geiger1.wav","player/geiger2.wav","player/geiger3.wav"}
+ -- Счётчик Гейгера щёлкает независимо от отрисовки HUD (камера, скрытый HUD, открытое меню).
+ hook.Add("Think","STALKER.RadiationGeiger",function()
+  local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
+  local rate=R.GetRate(p)
+  if rate>0 and CurTime()>nextClick then
+   surface.PlaySound(sounds[math.Clamp(math.ceil(rate),1,3)])
+   nextClick=CurTime()+math.Clamp(1/rate,0.08,2)*math.Rand(.6,1.4)
+  end
+ end)
  hook.Add("HUDPaint","STALKER.RadiationHUD",function()
   local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
-  local dose,rate=p:GetNW2Float("stalker_dose",0),p:GetNW2Float("stalker_rad_rate",0)
-  if dose>0 or rate>0 then
-   draw.SimpleText(string.format("РАДИАЦИЯ: %.1f / 100   ФОН: %.2f",dose,rate),"DermaDefaultBold",ScrW()/2,55,Color(245,180,60),TEXT_ALIGN_CENTER)
-   if rate>0 and CurTime()>nextClick then surface.PlaySound("player/geiger1.wav");nextClick=CurTime()+math.Clamp(1/rate,0.15,2) end
-  end
+  if (R.ExternalFrame or 0)>=FrameNumber()-2 then return end
+  if STALKER_INV and IsValid(STALKER_INV.Frame) then return end
+  local dose,rate=R.GetDose(p),R.GetRate(p)
+  local w,h=px(232),px(52);local x,y=px(24),ScrH()-px(150)-h
+  local col=R.Color(dose)
+  if STALKER_STYLE and STALKER_STYLE.Panel then STALKER_STYLE.Panel("stalker_inv",x,y,w,h,dose>=R.Config.DamageThreshold)
+  else surface.SetDrawColor(25,27,22,230);surface.DrawRect(x,y,w,h);surface.SetDrawColor(91,91,71);surface.DrawOutlinedRect(x,y,w,h,1) end
+  draw.SimpleText("☢ РАДИАЦИЯ","STRAD.Title",x+px(10),y+px(7),col)
+  draw.SimpleText(string.format("%.1f / 100",dose),"STRAD.Title",x+w-px(10),y+px(7),R.Colors.text,TEXT_ALIGN_RIGHT)
+  local bx,by,bw,bh=x+px(10),y+px(29),w-px(20),px(6)
+  surface.SetDrawColor(9,12,8,240);surface.DrawRect(bx,by,bw,bh)
+  surface.SetDrawColor(col);surface.DrawRect(bx+1,by+1,(bw-2)*math.Clamp(dose/100,0,1),bh-2)
+  surface.SetDrawColor(R.Colors.danger);surface.DrawRect(bx+bw*R.Config.DamageThreshold/100,by-px(2),1,bh+px(4))
+  draw.SimpleText(rate>0 and string.format("ФОН +%.2f/с",rate) or "ФОН В НОРМЕ","STRAD.Small",bx,y+h-px(14),rate>0 and R.Colors.danger or R.Colors.muted)
+ end)
+ -- Высокая доза: лёгкое обесцвечивание и пульсирующая виньетка.
+ hook.Add("RenderScreenspaceEffects","STALKER.RadiationFX",function()
+  local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
+  local dose=R.GetDose(p);if dose<R.Config.DamageThreshold then return end
+  local k=math.Clamp((dose-R.Config.DamageThreshold)/(100-R.Config.DamageThreshold),0,1)*(.75+.25*math.sin(CurTime()*3))
+  DrawColorModify({["$pp_colour_addr"]=0,["$pp_colour_addg"]=.02*k,["$pp_colour_addb"]=0,["$pp_colour_brightness"]=-.03*k,["$pp_colour_contrast"]=1+.1*k,["$pp_colour_colour"]=1-.4*k,["$pp_colour_mulr"]=0,["$pp_colour_mulg"]=0,["$pp_colour_mulb"]=0})
  end)
 end

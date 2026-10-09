@@ -60,15 +60,54 @@ hook.Add("RenderScreenspaceEffects","STEmission.Effects",function()
 end)
 hook.Add("HUDPaint","STEmission.HUD",function()
  if not hud:GetBool() or E.State.phase==0 then return end
+ local p=LocalPlayer();if IsValid(p) and E.IsUnconscious(p) then return end
  local phase=E.Config.Phases[E.State.phase];if not phase then return end
- local w=math.min(510,ScrW()-40);E.Box(ScrW()/2-w/2,108,w,65)
- draw.SimpleText("ВЫБРОС / "..phase.name,"Emission.Title",ScrW()/2,118,Color(204,175,111),TEXT_ALIGN_CENTER)
- draw.SimpleText(math.max(0,math.ceil(E.State.ends-CurTime())).." сек.","Emission.Body",ScrW()/2,148,Color(214,207,171),TEXT_ALIGN_CENTER)
+ -- Ниже плашки территории группировок (она занимает верх экрана по центру).
+ local w=math.min(510,ScrW()-40);local y=math.Round(math.max(150,ScrH()*.16))
+ E.Box(ScrW()/2-w/2,y,w,65)
+ draw.SimpleText("ВЫБРОС / "..phase.name,"Emission.Title",ScrW()/2,y+10,Color(204,175,111),TEXT_ALIGN_CENTER)
+ local sheltered=IsValid(p) and p:GetNW2Bool("stem_sheltered",false)
+ draw.SimpleText(math.max(0,math.ceil(E.State.ends-CurTime())).." сек.  /  "..(sheltered and "В УКРЫТИИ" or "ИЩИТЕ УКРЫТИЕ"),"Emission.Body",ScrW()/2,y+40,sheltered and Color(130,170,105) or Color(214,120,90),TEXT_ALIGN_CENTER)
+end)
+-- Обморок: камера из глаз упавшего тела, затемнение с «пульсом», затем размытое пробуждение.
+surface.CreateFont("Emission.Faint",{font="Trebuchet MS",size=26,weight=700,extended=true})
+local wakeUntil,wasOut,nextBeat=0,false,0
+local function faintAlpha(p)
+ local now=CurTime();local untilTime=p:GetNW2Float("stem_unconscious",0);if untilTime<=now then return 0 end
+ local start=p:GetNW2Float("stem_unconscious_start",now)
+ return math.min(math.Clamp((now-start)/1.2,0,1),math.Clamp((untilTime-now)/2,0,1))
+end
+hook.Add("CalcView","STEmission.Faint",function(p,origin,angles,fov)
+ if not E.IsUnconscious(p) then return end
+ local rag=p:GetNW2Entity("stem_ragdoll");if not IsValid(rag) then return end
+ if not rag.StemHeadHidden then
+  local head=rag:LookupBone("ValveBiped.Bip01_Head1");if head then rag:ManipulateBoneScale(head,Vector(0,0,0)) end
+  rag.StemHeadHidden=true
+ end
+ local att=rag:LookupAttachment("eyes");local eyes=att and att>0 and rag:GetAttachment(att)
+ if eyes then return {origin=eyes.Pos,angles=eyes.Ang,fov=fov,znear=1,drawviewer=false} end
+ return {origin=rag:WorldSpaceCenter()+Vector(0,0,8),angles=angles,fov=fov,drawviewer=false}
+end)
+hook.Add("Think","STEmission.Faint",function()
+ local p=LocalPlayer();if not IsValid(p) then return end
+ local out=E.IsUnconscious(p)
+ if out and CurTime()>nextBeat then nextBeat=CurTime()+1.1;surface.PlaySound("player/heartbeat1.wav") end
+ if wasOut and not out and p:Alive() then wakeUntil=CurTime()+4 end
+ if out and not wasOut then surface.PlaySound("player/pl_pain"..math.random(5,7)..".wav") end
+ wasOut=out
+end)
+hook.Add("RenderScreenspaceEffects","STEmission.FaintFX",function()
+ local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
+ local k=E.IsUnconscious(p) and 1 or math.Clamp((wakeUntil-CurTime())/4,0,1)
+ if k<=0 then return end
+ DrawMotionBlur(.15,.85*k,.01);DrawToyTown(math.ceil(6*k),ScrH()*.5)
 end)
 hook.Add("DrawOverlay","STEmission.Blackout",function()
  local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
- local remaining=p:GetNW2Float("stem_unconscious",0)-CurTime();if remaining<=0 then return end
- surface.SetDrawColor(0,0,0,255*math.min(1,remaining));surface.DrawRect(0,0,ScrW(),ScrH())
+ local a=faintAlpha(p);if a<=0 then return end
+ local pulse=.9+.1*math.sin(CurTime()*5.5)
+ surface.SetDrawColor(0,0,0,255*a*pulse);surface.DrawRect(0,0,ScrW(),ScrH())
+ draw.SimpleText("ВЫ ПОТЕРЯЛИ СОЗНАНИЕ","Emission.Faint",ScrW()/2,ScrH()*.62,Color(170,60,45,220*a),TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 end)
 hook.Add("ShutDown","STEmission.SoundStop",stopSound)
 hook.Add("InitPostEntity","STEmission.Request",function() net.Start("stem.request");net.SendToServer() end)

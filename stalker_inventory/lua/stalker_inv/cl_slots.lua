@@ -5,20 +5,32 @@ function PANEL:Init()
 end
 function PANEL:Setup(zone,index,label) self.Zone=zone;self.Index=index;self.Label=label end
 function PANEL:GetItem()
+    if self.Zone=="stash" then
+        local stash=S.Inventory.stashes and S.Inventory.stashes[self.StashID]
+        return stash and stash.items[self.Index]
+    end
     local item=S.GetAt(S.Inventory,self.Zone,self.Index)
     if item and S.ActiveTab=="Артефакты" and self.Zone=="grid" and S.Items[item.id].category~="artifact" then return end
     return item
 end
 function PANEL:Paint(w,h)
     local item=self:GetItem();local active=self:IsHovered() or (item and S.SelectedUID==item.uid)
+    -- Подсветка ячейки под курсором во время перетаскивания.
+    local d=S.Drag;local dropTarget=d and d.active and d.source~=self and self:IsVisible() and self.TargetEnabled~=false
+    if dropTarget then
+        local mx,my=gui.MousePos();local x,y=self:LocalToScreen(0,0)
+        dropTarget=mx>=x and my>=y and mx<x+w and my<y+h
+        active=active or dropTarget
+    end
     self.HoverAlpha=Lerp(math.min(1,FrameTime()*14),self.HoverAlpha,active and 1 or 0)
     S.PaintPanel(0,0,w,h,active)
     if self.Zone=="equipment" and tostring(self.Index):find("artifact",1,true) then
         surface.SetDrawColor(74,122,58,22);surface.DrawRect(1,1,w-2,h-2)
     end
-    surface.SetDrawColor(200,169,81,20*self.HoverAlpha);surface.DrawRect(1,1,w-2,h-2)
+    surface.SetDrawColor(200,169,81,(dropTarget and 45 or 20)*self.HoverAlpha);surface.DrawRect(1,1,w-2,h-2)
     S.DrawBrassFrame(0,0,w,h,active)
     if item then
+        if d and d.active and d.source==self then surface.SetDrawColor(0,0,0,120);surface.DrawRect(1,1,w-2,h-2) end
         S.DrawItemIcon(item,S.Px(6),S.Px(8),w-S.Px(12),h-S.Px(18))
         if item.count>1 then S.Text("x"..item.count,"SI.Small",w-S.Px(4),S.Px(3),S.C.text,TEXT_ALIGN_RIGHT) end
         surface.SetDrawColor(S.C.background);surface.DrawRect(S.Px(5),h-S.Px(7),w-S.Px(10),S.Px(3))
@@ -36,6 +48,7 @@ function PANEL:OnCursorExited() self.HoverStart=nil;S.HideTooltip() end
 function PANEL:Think()
     if self.HoverStart and RealTime()-self.HoverStart>.45 then S.ShowTooltip(self);self.HoverStart=nil end
 end
+local function stashOpen() return IsValid(S.StashFrame) and S.StashFrame.StashID end
 function PANEL:OnMousePressed(code)
     local item=self:GetItem()
     if not item then return end
@@ -43,15 +56,25 @@ function PANEL:OnMousePressed(code)
     if code==MOUSE_RIGHT then
         S.CancelDrag();S.HideTooltip()
         local m=DermaMenu()
-        m:AddOption("Использовать / экипировать",function() S.SendAction("use",self.Zone,self.Index) end)
+        if self.Zone=="stash" then
+            m:AddOption("Забрать в рюкзак",function() S.StashAct("take",self.StashID,self.Index,0) end)
+            m:Open();return
+        end
+        local d=S.Items[item.id]
+        local equipped=select(2,S.FindUID(S.Inventory,item.uid))=="equipment"
+        m:AddOption(equipped and not d.weapon and "Снять" or (equipped and "Взять в руки" or "Использовать / экипировать"),function() S.SendAction("use",self.Zone,self.Index) end)
+        if self.Zone=="grid" and stashOpen() then
+            m:AddOption("Положить в тайник",function() if stashOpen() then S.StashAct("put",S.StashFrame.StashID,self.Index,0) end end)
+        end
         m:AddOption("Выбросить стак",function() S.SendAction("drop",self.Zone,self.Index) end)
-        if S.Items[item.id].salvage then m:AddOption("Разобрать",function() S.ConfirmDisassemble(self.Zone,self.Index) end) end
+        if d.salvage and S.Config.AllowDisassemble then m:AddOption("Разобрать",function() S.ConfirmDisassemble(self.Zone,self.Index) end) end
         if self.Zone=="quickbar" then m:AddOption("Убрать из быстрого доступа",function() S.SendAction("unbind",self.Zone,self.Index) end) end
         m:Open();return
     end
     if code~=MOUSE_LEFT then return end
     if self.LastClick and RealTime()-self.LastClick<.28 then
-        self.LastClick=nil;S.CancelDrag();S.SendAction("use",self.Zone,self.Index)
+        self.LastClick=nil;S.CancelDrag()
+        if self.Zone=="stash" then S.StashAct("take",self.StashID,self.Index,0) else S.SendAction("use",self.Zone,self.Index) end
     else self.LastClick=RealTime();S.BeginDrag(self) end
 end
 function PANEL:OnMouseReleased(code) if code==MOUSE_LEFT then S.EndDrag() end end

@@ -76,8 +76,15 @@ hook.Add("HUDPaint","STFW.HUD",function()
   local y=vy+px(30+(i-1)*26);draw.SimpleText(v[1],"STFW.HudSmall",vx+px(12),y,F.C.text)
   U.Bar(vx+px(99),y+px(3),px(151),px(8),v[2]/v[3],v[4]);draw.SimpleText(tostring(math.max(0,v[2])),"STFW.HudSmall",vx+width-px(10),y,F.C.text,TEXT_ALIGN_RIGHT)
  end
- local radiation=inv and inv.radiation or 0
- draw.SimpleText(string.format("☢ %.2f   REP %+d",radiation,me.rep[me.faction] or 0),"STFW.Hud",vx+px(12),vy+px(87),radiation>.5 and F.C.red or F.C.muted)
+ -- Радиация: накопленная доза и текущий фон из системы радиации (а не сумма артефактов).
+ local dose,rate=p:GetNW2Float("stalker_dose",0),p:GetNW2Float("stalker_rad_rate",0)
+ local R=STALKER_RAD;local danger=R and R.Config and R.Config.DamageThreshold or 30
+ local radcol=R and R.Color and R.Color(dose) or (dose>=danger and F.C.red or F.C.muted)
+ draw.SimpleText(string.format("☢ %.1f",dose),"STFW.Hud",vx+px(12),vy+px(87),radcol)
+ draw.SimpleText(rate>0 and string.format("+%.2f/с",rate) or "фон 0","STFW.HudSmall",vx+px(74),vy+px(89),rate>0 and F.C.red or F.C.muted)
+ U.Bar(vx+px(140),vy+px(92),px(70),px(6),dose/100,radcol)
+ draw.SimpleText(string.format("REP %+d",me.rep[me.faction] or 0),"STFW.Hud",vx+width-px(10),vy+px(87),F.C.muted,TEXT_ALIGN_RIGHT)
+ if R and R.MarkExternalHUD then R.MarkExternalHUD() end
  if inv then
   U.Bar(vx+px(12),vy+px(116),px(87),px(4),(inv.hunger or 100)/100,F.C.green)
   U.Bar(vx+px(109),vy+px(116),px(87),px(4),(inv.thirst or 100)/100,Color(100,138,145))

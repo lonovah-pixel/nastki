@@ -74,3 +74,12 @@ function TAB:Paint(w,h)
     S.Text(self.Label,"SI.Body",w/2,h/2,self.Active and S.C.accent or S.C.muted,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 end
 vgui.Register("DToggleTab",TAB,"DButton")
+-- Радиация берётся из сетевых переменных сервера (обновляются каждую секунду), а не из снимка инвентаря.
+function S.RadiationDose(ply) ply=ply or LocalPlayer();return IsValid(ply) and ply:GetNW2Float("stalker_dose",0) or 0 end
+function S.RadiationRate(ply) ply=ply or LocalPlayer();return IsValid(ply) and ply:GetNW2Float("stalker_rad_rate",0) or 0 end
+function S.RadiationDanger() return STALKER_RAD and STALKER_RAD.Config and STALKER_RAD.Config.DamageThreshold or 30 end
+local warn=Color(214,170,64)
+function S.RadiationColor(dose)
+    if dose>=S.RadiationDanger() then return S.C.danger end
+    return dose>=1 and warn or S.C.ok
+end

@@ -3,6 +3,9 @@ S.Config = {
     Width = 960, Height = 600, Columns = 8, Rows = 5, Slot = 64, QuickSlot = 48,
     DarkRP = {UseHunger=true, DisableStarter=true},
     MaxWeight = 50, OverweightSpeed = 0.55, Autosave = 30,
+    -- Личные тайники: сущность в мире видна и доступна только владельцу.
+    MaxStashes = 3, StashSlots = 20, StashRange = 150, StashUseRange = 120,
+    StashModel = "models/items/item_item_crate.mdl",
     -- Боеприпасы SWEP остаются нативными; хотбар не подменяет выбор оружия.
     QuickModifier = KEY_LALT, AllowDisassemble = true,
     Equipment = {

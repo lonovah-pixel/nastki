@@ -11,21 +11,70 @@ function E.Send(p)
  local raw=util.TableToJSON({state=E.State,settings=E.Settings()});if not raw or #raw>60000 then return end
  net.Start("stem.state");net.WriteUInt(#raw,16);net.WriteData(raw,#raw);if IsValid(p) then net.Send(p) else net.Broadcast() end
 end
-function E.Wake(p) p:SetNW2Float("stem_unconscious",0) end
+-- Обморок: игрок скрывается, вместо него падает рагдолл, камера клиента смотрит его глазами.
+function E.CreateBody(p)
+ if IsValid(p.StemRagdoll) then return end
+ local rag=ents.Create("prop_ragdoll");if not IsValid(rag) then return end
+ rag:SetModel(p:GetModel());rag:SetPos(p:GetPos());rag:SetAngles(Angle(0,p:EyeAngles().y,0))
+ rag:SetSkin(p:GetSkin());rag:SetMaterial(p:GetMaterial());rag:SetColor(p:GetColor())
+ for _,g in ipairs(p:GetBodyGroups()) do rag:SetBodygroup(g.id,p:GetBodygroup(g.id)) end
+ rag:Spawn();rag:Activate();rag:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+ p:SetupBones()
+ local vel=p:GetVelocity()
+ for i=0,rag:GetPhysicsObjectCount()-1 do
+  local phys=rag:GetPhysicsObjectNum(i)
+  if IsValid(phys) then
+   local pos,ang=p:GetBonePosition(rag:TranslatePhysBoneToBone(i))
+   if pos and ang then phys:SetPos(pos);phys:SetAngles(ang) end
+   phys:SetVelocity(vel);phys:Wake()
+  end
+ end
+ rag.StemOwner=p;p.StemRagdoll=rag;p:SetNW2Entity("stem_ragdoll",rag)
+ p.StemHidden=true;p.StemMoveType=p:GetMoveType()
+ p:SetNoDraw(true);p:DrawShadow(false);p:SetNotSolid(true);p:DrawViewModel(false);p:DrawWorldModel(false);p:SetMoveType(MOVETYPE_NONE)
+end
+-- teleport: перенести игрока туда, где лежит тело (после пробуждения или смерти).
+function E.RemoveBody(p,teleport)
+ local rag=p.StemRagdoll;p.StemRagdoll=nil
+ if p.StemHidden then
+  p.StemHidden=nil;p:SetNoDraw(false);p:DrawShadow(true);p:SetNotSolid(false);p:DrawViewModel(true);p:DrawWorldModel(true)
+  local move=p.StemMoveType;p.StemMoveType=nil
+  p:SetMoveType((move==nil or move==MOVETYPE_NONE) and MOVETYPE_WALK or move)
+ end
+ p:SetNW2Entity("stem_ragdoll",NULL)
+ if not IsValid(rag) then return end
+ if teleport then
+  local pos=rag:GetPos()
+  local tr=util.TraceLine({start=pos+Vector(0,0,24),endpos=pos-Vector(0,0,72),filter={rag,p},mask=MASK_PLAYERSOLID})
+  local ground=(tr.Hit and not tr.StartSolid and tr.HitPos or pos)+Vector(0,0,2)
+  local mins,maxs=p:GetHull()
+  local hull=util.TraceHull({start=ground,endpos=ground,mins=mins,maxs=maxs,filter={rag,p},mask=MASK_PLAYERSOLID})
+  if not hull.StartSolid then p:SetPos(ground) end
+ end
+ rag:Remove()
+end
+function E.Wake(p,teleport)
+ p:SetNW2Float("stem_unconscious",0);p:SetNW2Float("stem_unconscious_until",0)
+ E.RemoveBody(p,teleport and p:Alive())
+end
 function E.Knockout(p)
  if p.StemKnocked or not p:Alive() then return end
- p.StemKnocked=true;p:SetNW2Float("stem_unconscious",CurTime()+E.Config.KnockoutSeconds);hook.Run("STEmissionUnconscious",p,E.Config.KnockoutSeconds)
+ p.StemKnocked=true
  if p:InVehicle() then p:ExitVehicle() end
+ local now,seconds=CurTime(),E.Config.KnockoutSeconds
+ p:SetNW2Float("stem_unconscious_start",now);p:SetNW2Float("stem_unconscious",now+seconds);p:SetNW2Float("stem_unconscious_until",now+seconds)
+ E.CreateBody(p)
+ hook.Run("STEmissionUnconscious",p,seconds)
 end
 function E.Start()
  if E.State.phase>0 then return false end
- for _,p in ipairs(player.GetAll()) do p.StemKnocked=nil;E.Wake(p) end
+ for _,p in ipairs(player.GetAll()) do p.StemKnocked=nil;E.Wake(p,true) end
  E.State.phase=1;E.State.started=CurTime();E.State.ends=CurTime()+E.Config.Phases[1].duration;E.State.next=0
  E.Send();hook.Run("STEmissionStarted");hook.Run("STEmissionPhase",1,"warning");return true
 end
 function E.Stop(aborted)
  if E.State.phase==0 then return false end
- for _,p in ipairs(player.GetAll()) do E.Wake(p);p.StemKnocked=nil end
+ for _,p in ipairs(player.GetAll()) do E.Wake(p,true);p.StemKnocked=nil end
  E.State.phase=0;E.State.started=0;E.State.ends=0;E.Schedule();E.Send()
  hook.Run(aborted and "STEmissionAborted" or "STEmissionFinished");return true
 end
@@ -49,6 +98,10 @@ end
 local lastDamage=CurTime()
 timer.Create("STEmission.Tick",.25,0,function()
  local state=E.State;local now=CurTime()
+ -- Пробуждение по таймеру: тело убирается, игрок встаёт на его месте.
+ for _,p in ipairs(player.GetAll()) do
+  if p.StemHidden and (p:GetNW2Float("stem_unconscious",0)<=now or not IsValid(p.StemRagdoll)) then E.Wake(p,true) end
+ end
  if state.phase==0 then if E.Config.AutoStart and state.next>0 and now>=state.next then E.Start() end;return end
  if now>=state.ends then
   state.phase=state.phase+1
@@ -60,26 +113,42 @@ timer.Create("STEmission.Tick",.25,0,function()
  local phase=E.Config.Phases[state.phase]
  local progress=math.Clamp((now-state.started)/phase.duration,0,1)
  local damage=Lerp(progress,phase.damage,phase.damageEnd)
- if not E.Config.DamagePlayers then return end
  for _,p in ipairs(player.GetAll()) do
-  if p:Alive() and not E.IsSheltered(p) and hook.Run("STEmissionCanDamage",p,phase.id)~=false then
-   if phase.id=="peak" then E.Knockout(p) end
-   local dmg=DamageInfo();dmg:SetDamage(damage);dmg:SetDamageType(DMG_RADIATION);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld());p:TakeDamageInfo(dmg)
+  if p:Alive() then
+   local sheltered=E.IsSheltered(p);p:SetNW2Bool("stem_sheltered",sheltered)
+   if E.Config.DamagePlayers and not sheltered and hook.Run("STEmissionCanDamage",p,phase.id)~=false then
+    -- На пике незащищённый сталкер падает в обморок (один раз за выброс).
+    if phase.id=="peak" then E.Knockout(p) end
+    local dmg=DamageInfo();dmg:SetDamage(damage);dmg:SetDamageType(DMG_RADIATION);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld());p:TakeDamageInfo(dmg)
+   end
   end
  end
 end)
-local function unconscious(p) return p:Alive() and p:GetNW2Float("stem_unconscious",0)>CurTime() end
-hook.Add("StartCommand","STEmission.Unconscious",function(p,cmd)
- if unconscious(p) then cmd:ClearButtons();cmd:ClearMovement() end
-end)
-hook.Add("SetupMove","STEmission.Unconscious",function(p,mv)
- if unconscious(p) then mv:SetForwardSpeed(0);mv:SetSideSpeed(0);mv:SetUpSpeed(0);mv:SetMaxSpeed(0);mv:SetMaxClientSpeed(0) end
-end)
+local unconscious=E.IsUnconscious
 for _,name in ipairs({"PlayerUse","PlayerSwitchWeapon","CanPlayerEnterVehicle","PlayerNoClip"}) do
  hook.Add(name,"STEmission.Unconscious",function(p) if unconscious(p) then return false end end)
 end
-hook.Add("PlayerDeath","STEmission.Wake",E.Wake)
-hook.Add("PlayerSpawn","STEmission.Wake",E.Wake)
+-- Урон по лежащему телу получает сам игрок (тело — его «хитбокс» на время обморока).
+hook.Add("EntityTakeDamage","STEmission.BodyDamage",function(ent,dmg)
+ local p=ent.StemOwner
+ if not IsValid(p) or p.StemRagdoll~=ent then return end
+ if p:Alive() and not dmg:IsDamageType(DMG_CRUSH) and dmg:GetDamage()>0 then
+  local copy=DamageInfo();copy:SetDamage(dmg:GetDamage());copy:SetDamageType(dmg:GetDamageType())
+  copy:SetAttacker(IsValid(dmg:GetAttacker()) and dmg:GetAttacker() or game.GetWorld())
+  copy:SetInflictor(IsValid(dmg:GetInflictor()) and dmg:GetInflictor() or game.GetWorld())
+  copy:SetDamagePosition(dmg:GetDamagePosition());copy:SetDamageForce(dmg:GetDamageForce())
+  p:TakeDamageInfo(copy)
+ end
+ return true
+end)
+-- Смерть в обмороке: игрок переносится к телу до создания трупа, тело убирается.
+hook.Add("DoPlayerDeath","STEmission.Body",function(p)
+ if p.StemHidden then p:SetNW2Float("stem_unconscious",0);p:SetNW2Float("stem_unconscious_until",0);E.RemoveBody(p,true) end
+end)
+hook.Add("PlayerDeath","STEmission.Wake",function(p) E.Wake(p,false) end)
+hook.Add("PlayerSpawn","STEmission.Wake",function(p) E.Wake(p,false) end)
+hook.Add("PlayerDisconnected","STEmission.Body",function(p) E.RemoveBody(p,false) end)
+hook.Add("PlayerSilentDeath","STEmission.Wake",function(p) E.Wake(p,false) end)
 E.Schedule()
 local function rate(p)
  if (p.StemRequest or 0)>CurTime() then return false end;p.StemRequest=CurTime()+.3;return true
@@ -104,4 +173,7 @@ end)
 concommand.Add("stem_start",function(p) if not IsValid(p) or E.IsAdmin(p) then E.Start() end end)
 concommand.Add("stem_stop",function(p) if not IsValid(p) or E.IsAdmin(p) then E.Stop(true) end end)
 hook.Add("PlayerInitialSpawn","STEmission.Sync",function(p) timer.Simple(2,function() if IsValid(p) then E.Send(p) end end) end)
-hook.Add("PostCleanupMap","STEmission.Cleanup",function() E.Stop(true);E.RoofCache=setmetatable({},{__mode="k"}) end)
+hook.Add("PostCleanupMap","STEmission.Cleanup",function()
+ E.Stop(true);E.RoofCache=setmetatable({},{__mode="k"})
+ for _,p in ipairs(player.GetAll()) do if p.StemHidden then E.Wake(p,false) end end
+end)

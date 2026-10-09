@@ -114,17 +114,35 @@ function S.ValidateSaved(raw)
     for _,k in ipairs({"hunger","thirst"}) do out[k]=math.Clamp(tonumber(raw[k]) or 100,0,100) end
     out.dose=math.Clamp(tonumber(raw.dose) or 0,0,100)
     if raw.stashes~=nil then
-        if type(raw.stashes)~="table" or table.Count(raw.stashes)>3 then return nil,"Повреждены тайники" end
+        if type(raw.stashes)~="table" or table.Count(raw.stashes)>S.Config.MaxStashes then return nil,"Повреждены тайники" end
         for id,stash in pairs(raw.stashes) do
             if type(id)~="string" or #id>96 or type(stash)~="table" or type(stash.map)~="string" or type(stash.pos)~="table" or type(stash.items)~="table" then return nil,"Повреждён тайник" end
             for _,axis in ipairs({"x","y","z"}) do local v=stash.pos[axis];if type(v)~="number" or v~=v or math.abs(v)>1000000 then return nil,"Координаты тайника" end end
             local container=S.EmptyInventory();container.grid=stash.items
             local validated,err=S.ValidateSaved(container);if not validated then return nil,err end
-            for slot,item in pairs(validated.grid) do if slot>20 or seen[item.uid] then return nil,"Дубликат/слот тайника" end;seen[item.uid]=true end
+            for slot,item in pairs(validated.grid) do if slot>S.Config.StashSlots or seen[item.uid] then return nil,"Дубликат/слот тайника" end;seen[item.uid]=true end
             out.stashes[id]={map=stash.map,pos=table.Copy(stash.pos),items=validated.grid}
         end
     end
     return out
+end
+-- Тайник владельца, на который смотрит игрок (сущность без коллизии, поэтому без трассировки).
+function S.FindStashInView(ply)
+    if not IsValid(ply) then return end
+    local eye,aim=ply:EyePos(),ply:GetAimVector();local best,bestDot
+    for _,ent in ipairs(ents.FindByClass("stalker_stash")) do
+        if ent:GetStashOwner()==ply then
+            local dir=ent:WorldSpaceCenter()-eye;local dist=dir:Length()
+            if dist<=S.Config.StashUseRange then
+                dir:Normalize();local dot=dir:Dot(aim)
+                if dot>(dist<48 and .6 or .9) and (not bestDot or dot>bestDot) then best,bestDot=ent,dot end
+            end
+        end
+    end
+    return best
+end
+function S.IsUnconscious(ply)
+    return ST_EMISSION and type(ST_EMISSION.IsUnconscious)=="function" and ST_EMISSION.IsUnconscious(ply)==true
 end
 local meta=FindMetaTable("Player")
 function meta:GetInventory()

@@ -37,3 +37,6 @@ S.CategoryNames={medicine="Медицина",food="Провизия",ammo="Бо�
 add("antirad",{name="Антирад",description="Снижает накопленную дозу радиации на 40.",model="models/healthvial.mdl",weight=.1,stackable=true,max_stack=10,category="medicine"})
 add("hazmat",{name="Защитный костюм",description="Снижает поступающую радиацию на 70%.",model="models/props_c17/SuitCase_Passenger_Physics.mdl",weight=6,category="armor",stats={armor=25,radiationProtection=.7}})
 S.StatNames.radiationProtection="Защита от радиации"
+-- Отдельных иконок нет: используем ближайшие по смыслу вместо «?».
+S.Items.antirad.icon="stalker_inv/items/medkit.png"
+S.Items.hazmat.icon="stalker_inv/items/jacket.png"

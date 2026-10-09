@@ -17,11 +17,14 @@ function PANEL:Paint(w,h)
 end
 vgui.Register("STALKERTooltip",PANEL,"DPanel")
 function S.HideTooltip() if IsValid(S.Tooltip) then S.Tooltip:Remove() end;S.Tooltip=nil end
+-- Подсказка — отдельная панель поверх всех окон: работает и для рюкзака, и для окна тайника.
 function S.ShowTooltip(slot)
     if S.Drag or not IsValid(S.Frame) then return end
     local item=slot:GetItem();if not item then return end
-    S.HideTooltip();local p=vgui.Create("STALKERTooltip",S.Frame);p:SetItem(item);p:SetZPos(10000)
-    p:SetDrawOnTop(true);local x,y=S.Frame:ScreenToLocal(gui.MouseX()+16,gui.MouseY()+16)
-    p:SetPos(math.Clamp(x,0,math.max(0,S.Frame:GetWide()-p:GetWide())),math.Clamp(y,0,math.max(0,S.Frame:GetTall()-p:GetTall())))
+    S.HideTooltip();local p=vgui.Create("STALKERTooltip");p:SetItem(item);p:SetDrawOnTop(true)
+    local x,y=gui.MouseX()+16,gui.MouseY()+16
+    if x+p:GetWide()>ScrW() then x=gui.MouseX()-16-p:GetWide() end
+    if y+p:GetTall()>ScrH() then y=ScrH()-p:GetTall() end
+    p:SetPos(math.max(0,x),math.max(0,y))
     S.Tooltip=p
 end

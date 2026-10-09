@@ -9,16 +9,18 @@ function PANEL:Init()
     self.Grid.Paint=function(_,w,h)
         local count=table.Count(S.Inventory.grid)
         S.Text((S.ActiveTab=="Артефакты" and "АРТЕФАКТЫ" or "РЮКЗАК").." / "..count.." ИЗ 40","SI.Title",0,0,S.C.muted)
-        S.Text("Перетащите предмет в ячейку или быстрый слот","SI.Small",0,S.Px(370),S.C.muted)
+        S.Text(IsValid(S.StashFrame) and "Перетащите предмет в тайник справа или в ячейку рюкзака" or "Перетащите предмет в ячейку или быстрый слот","SI.Small",0,S.Px(370),S.C.muted)
     end
     self.GridSlots={}
-    for i=1,40 do self.GridSlots[i]=S.MakeSlot(self.Grid,"grid",i,((i-1)%8)*64,28+math.floor((i-1)/8)*68,64) end
+    for i=1,40 do self.GridSlots[i]=S.MakeSlot(self.Grid,"grid",i,((i-1)%8)*64,28+math.floor((i-1)/8)*66,62) end
+    -- Предмет из тайника, отпущенный на свободное место рюкзака, кладётся в первую свободную ячейку.
+    S.DropAreas[self.Grid]=function(src) if src.Zone=="stash" then S.StashAct("take",src.StashID,src.Index,0) end end
     self.PDA=S.BuildPDA(self);self.Tabs={}
     for i,label in ipairs({"Рюкзак","Артефакты","Карта","PDA"}) do
-        local tab=vgui.Create("DToggleTab",self);tab.Label=label;tab:SetPos(S.Px(512+(i-1)*110),S.Px(82));tab:SetSize(S.Px(106),S.Px(30));tab.Active=i==1
+        local tab=vgui.Create("DToggleTab",self);tab.Label=label;tab:SetPos(S.Px(520+(i-1)*106),S.Px(80));tab:SetSize(S.Px(102),S.Px(32));tab.Active=i==1
         tab.DoClick=function() self:SetTab(label) end;self.Tabs[#self.Tabs+1]=tab
     end
-    S.Button(self,"Тайники",760,22,124,34,function() S.Close();RunConsoleCommand("stalker_stash") end)
+    S.Button(self,"Тайники",760,22,124,34,function() S.Close();S.OpenStashManager() end)
     S.Button(self,"×",898,22,34,34,function() S.Close() end)
     self.Detail=vgui.Create("DPanel",self);self.Detail:SetPos(S.Px(732),S.Px(124));self.Detail:SetSize(S.Px(212),S.Px(388))
     self.Detail.Paint=function(_,w,h) self:PaintDetail(w,h) end
@@ -77,42 +79,75 @@ function PANEL:Paint(w,h)
     surface.SetDrawColor(col);surface.DrawRect(S.Px(330),S.Px(48),S.Px(260)*math.min(1,weight/S.Config.MaxWeight),S.Px(4))
     local money=hook.Run("STALKER_INV_GetBalance",ply)
     if money==nil and ply.getDarkRPVar then money=ply:getDarkRPVar("money") end
-    S.Text(money and (string.Comma(tonumber(money) or 0).." ₽") or "— ₽","SI.Mono",S.Px(878),S.Px(24),c.text,TEXT_ALIGN_RIGHT)
-    S.Text("ЛИЧНЫЙ СЧЁТ","SI.Small",S.Px(878),S.Px(50),c.muted,TEXT_ALIGN_RIGHT)
-    local rad=S.Inventory.radiation or 0;local radcol=rad>.5 and c.danger or c.ok
-    draw.RoundedBox(2,S.Px(16),S.Px(84),S.Px(78),S.Px(24),Color(radcol.r,radcol.g,radcol.b,35))
-    S.Text(string.format("☢ %.2f",rad),"SI.Small",S.Px(20),S.Px(90),radcol)
-    S.Text("СЫТОСТЬ","SI.Small",S.Px(102),S.Px(87),c.muted);S.Text("ВОДА","SI.Small",S.Px(288),S.Px(87),c.muted)
-    surface.SetDrawColor(c.panel);surface.DrawRect(S.Px(174),S.Px(91),S.Px(96),S.Px(4));surface.DrawRect(S.Px(338),S.Px(91),S.Px(96),S.Px(4))
-    surface.SetDrawColor(c.ok);surface.DrawRect(S.Px(174),S.Px(91),S.Px(96)*((S.Config.DarkRP.UseHunger and ply.getDarkRPVar and ply:getDarkRPVar("Energy")) or S.Inventory.hunger)/100,S.Px(4))
-    surface.SetDrawColor(c.accent);surface.DrawRect(S.Px(338),S.Px(91),S.Px(96)*S.Inventory.thirst/100,S.Px(4))
+    -- Деньги левее кнопок «Тайники» / «×», иначе текст оказывается под кнопкой.
+    S.Text(money and (string.Comma(tonumber(money) or 0).." ₽") or "— ₽","SI.Mono",S.Px(744),S.Px(24),c.text,TEXT_ALIGN_RIGHT)
+    S.Text("ЛИЧНЫЙ СЧЁТ","SI.Small",S.Px(744),S.Px(50),c.muted,TEXT_ALIGN_RIGHT)
+    -- Радиация: накопленная доза (0–100) и текущий фон, как на сервере.
+    local dose,rate=S.RadiationDose(ply),S.RadiationRate(ply);local radcol=S.RadiationColor(dose)
+    S.PaintPanel(S.Px(16),S.Px(80),S.Px(180),S.Px(32),dose>=S.RadiationDanger())
+    S.Text("☢","SI.Mono",S.Px(24),S.Px(87),radcol)
+    S.Text(string.format("ДОЗА %.1f",dose),"SI.Small",S.Px(42),S.Px(85),radcol)
+    S.Text(rate>0 and string.format("+%.2f/с",rate) or "ФОН 0","SI.Small",S.Px(188),S.Px(85),rate>0 and c.danger or c.muted,TEXT_ALIGN_RIGHT)
+    STALKER_STYLE.Bar(S.Px(42),S.Px(100),S.Px(146),S.Px(5),dose/100,radcol)
+    local energy=S.Config.DarkRP.UseHunger and ply.getDarkRPVar and ply:getDarkRPVar("Energy")
+    local hunger=type(energy)=="number" and energy or S.Inventory.hunger or 100;local thirst=S.Inventory.thirst or 100
+    for i,v in ipairs({{"СЫТОСТЬ",hunger,c.ok},{"ВОДА",thirst,c.accent}}) do
+        local x=S.Px(208+(i-1)*152)
+        S.Text(v[1],"SI.Small",x,S.Px(85),c.muted);S.Text(math.floor(v[2]).."%","SI.Small",x+S.Px(140),S.Px(85),c.text,TEXT_ALIGN_RIGHT)
+        STALKER_STYLE.Bar(x,S.Px(100),S.Px(140),S.Px(5),v[2]/100,v[2]<20 and c.danger or v[3])
+    end
 end
 function PANEL:Think()
     if self.Animation:Active() then self.Animation:Run() end
     if S.Looking and not input.IsMouseDown(MOUSE_RIGHT) then
         S.Looking=false;self:SetMouseInputEnabled(true);gui.EnableScreenClicker(true)
     end
-    if gui.IsGameUIVisible() or (IsValid(LocalPlayer()) and not LocalPlayer():Alive()) then S.Close() end
+    local ply=LocalPlayer()
+    if gui.IsGameUIVisible() or (IsValid(ply) and (not ply:Alive() or S.IsUnconscious(ply))) then S.Close() end
 end
 function PANEL:OnMousePressed(code)
     if code==MOUSE_RIGHT then S.HideTooltip();S.Looking=true;self:SetMouseInputEnabled(false);gui.EnableScreenClicker(false) end
 end
 function PANEL:OnRemove()
     S.CancelDrag();S.HideTooltip();S.Looking=false;gui.EnableScreenClicker(false)
+    S.DropAreas[self.Grid]=nil
+    if IsValid(S.StashFrame) then S.StashFrame:Remove() end
 end
 vgui.Register("STALKERInventory",PANEL,"EditablePanel")
-function S.Close() if IsValid(S.Frame) then S.Frame:Remove() end;S.Frame=nil end
-function S.Open()
+function S.Close()
+    if IsValid(S.StashFrame) then S.StashFrame:Remove() end;S.StashFrame=nil
+    if IsValid(S.Frame) then S.Frame:Remove() end;S.Frame=nil
+end
+-- Масштаб подбирается так, чтобы окно (или рюкзак + тайник) целиком помещалось на экране.
+function S.ComputeScale(width,height)
+    return math.Clamp(math.min(ScrW()/1280,ScrH()/720)*S.CVScale:GetFloat(),.5,math.min((ScrW()-20)/width,(ScrH()-20)/height))
+end
+S.StashWidth=300;S.StashGap=12
+-- stashID (строка) открывает рядом окно тайника; консольные команды передают сюда игрока — игнорируем.
+function S.Open(stashID)
     if IsValid(S.Frame) then return end
-    if not IsValid(LocalPlayer()) or not LocalPlayer():Alive() then return end
-    S.Scale=math.Clamp(math.min(ScrW()/1280,ScrH()/720)*S.CVScale:GetFloat(),.5,math.min(ScrW()/980,ScrH()/620))
-    S.CreateFonts();S.Frame=vgui.Create("STALKERInventory");S.RequestSync()
+    local ply=LocalPlayer()
+    if not IsValid(ply) or not ply:Alive() or S.IsUnconscious(ply) then return end
+    local withStash=type(stashID)=="string" and stashID~=""
+    S.Scale=S.ComputeScale(withStash and 960+S.StashGap+S.StashWidth+20 or 980,620)
+    S.CreateFonts();S.Frame=vgui.Create("STALKERInventory")
+    if withStash then
+        local stash=vgui.Create("STALKERStash");stash:Setup(stashID);S.StashFrame=stash
+        local gap=S.Px(S.StashGap);local total=S.Frame:GetWide()+gap+stash:GetWide()
+        local x,y=math.floor((ScrW()-total)/2),math.floor((ScrH()-S.Frame:GetTall())/2)
+        S.Frame:SetPos(x,y);stash:SetPos(x+S.Frame:GetWide()+gap,y)
+    end
+    S.RequestSync()
 end
 function S.Toggle() if IsValid(S.Frame) then S.Close() else S.Open() end end
 concommand.Add("stalker_inv",S.Toggle)
 concommand.Add("+stalker_inv",S.Open)
 concommand.Add("-stalker_inv",S.Close)
-hook.Add("OnScreenSizeChanged","STALKER_INV.Resize",function() if IsValid(S.Frame) then S.Close();S.Open() end end)
+hook.Add("OnScreenSizeChanged","STALKER_INV.Resize",function()
+    if not IsValid(S.Frame) then return end
+    local stash=IsValid(S.StashFrame) and S.StashFrame.StashID
+    S.Close();S.Open(stash)
+end)
 hook.Add("STALKER_INV_Updated","STALKER_INV.Refresh",function()
     S.HideTooltip()
     if IsValid(S.Frame) then S.Frame:RefreshDetail() end
