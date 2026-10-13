@@ -1,4 +1,4 @@
-> **Обновление DarkRP:** актуальные настройки и инструкция находятся в README_DARKRP.md в корне архива. Деньги DarkRP включены по умолчанию; членство — через вербовщика; меню лидера и суперадмина разделены. Ниже сохранена документация базовой версии.
+> **Сборка STALKER RP:** установка, настройка DarkRP и первый запуск сервера описаны в README.md в корне репозитория. Деньги DarkRP включены по умолчанию; членство — через вербовщика; меню лидера и суперадмина разделены. Ниже сохранена документация базовой версии аддона.
 
 # STALKER Inventory — Garry’s Mod
 
@@ -196,7 +196,7 @@ python3 tests/run_lua.py tests/core_spec.lua tests/server_spec.lua tests/persist
 Использованные справочники API: https://wiki.facepunch.com/gmod/Global.Derma_Anim , https://wiki.facepunch.com/gmod/Panel:SetMouseInputEnabled , https://wiki.facepunch.com/gmod/file.Write , https://wiki.facepunch.com/gmod/sql .
 
 
-Обновление 1.1: см. README_UPDATE_RU.md в корне комплекта.
+Изменения сборки: см. CHANGELOG.md в корне репозитория.
 
 ## Личные тайники (обновление)
 

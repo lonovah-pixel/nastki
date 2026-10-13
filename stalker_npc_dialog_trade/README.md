@@ -1,4 +1,4 @@
-> **Обновление DarkRP:** актуальные настройки и инструкция находятся в README_DARKRP.md в корне архива. Деньги DarkRP включены по умолчанию; членство — через вербовщика; меню лидера и суперадмина разделены. Ниже сохранена документация базовой версии.
+> **Сборка STALKER RP:** установка, настройка DarkRP и первый запуск сервера описаны в README.md в корне репозитория. Деньги DarkRP включены по умолчанию; членство — через вербовщика; меню лидера и суперадмина разделены. Ниже сохранена документация базовой версии аддона.
 
 # STALKER NPC DIALOG AND TRADE — 1.0.0
 
@@ -196,4 +196,4 @@ node --check figma/code.js
 API-источники: Facepunch Garry’s Mod Wiki (`sql`, `Entity:SetUseType`, `DModelPanel:SetModel`), исходник FPtje/DarkRP `gamemode/modules/money/sv_money.lua`, Figma Plugin Manifest и Plugin API. Ссылки приведены в SOURCES.md.
 
 
-Обновление 1.1: см. README_UPDATE_RU.md в корне комплекта.
+Изменения сборки: см. CHANGELOG.md в корне репозитория.

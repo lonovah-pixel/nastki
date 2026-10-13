@@ -3,9 +3,9 @@ if not SERVER then return end
 STALKER_WIPE=STALKER_WIPE or {}
 local W=STALKER_WIPE
 local marker="stalker_wipe/pending.json"
-local tables={"stalker_inventory","stfw_profiles","stfw_world","stnpc_stock","stnpc_wallet","stnpc_journal","stb_profiles","stb_rewards",
+local tables={"stalker_inventory","stfw_profiles","stfw_world","stnpc_stock","stnpc_wallet","stnpc_journal","stb_profiles","stb_rewards","stz_ammo",
  "darkrp_jobspawn","darkrp_position","darkrp_player","playerinformation","darkrp_door","darkrp_doorjobs","darkrp_doorgroups"}
-local dirs={"stalker_inv","stalker_npc","stalker_emissions","stalker_radiation"}
+local dirs={"stalker_inv","stalker_npc","stalker_emissions","stalker_radiation","stalker_zone"}
 file.CreateDir("stalker_wipe")
 local function reply(p,msg) if IsValid(p) then p:ChatPrint(msg) else print("[STALKER WIPE] "..msg) end end
 local function fail(msg)
@@ -82,7 +82,7 @@ concommand.Add("stalker_fullwipe",function(p,_,args)
  if MySQLite and MySQLite.isMySQL and MySQLite.isMySQL() then reply(p,"Внешний MySQL: полный вайп не поддерживается; ничего не изменено.");return end
  if args[1]~="confirm" then
   tokens[key]={value=tostring(math.random(100000,999999)),expires=CurTime()+60}
-  reply(p,"ПОЛНЫЙ ВАЙП сборки + DarkRP SQLite: деньги/имена, инвентари/тайники, группировки, точки, NPC, склады, зоны и укрытия всех карт. Файлы аддонов, баны и сторонние базы не удаляются.")
+  reply(p,"ПОЛНЫЙ ВАЙП сборки + DarkRP SQLite: деньги/имена, инвентари/тайники, группировки, точки, NPC, склады, зоны, поля аномалий и логова мутантов всех карт. Файлы аддонов, баны и сторонние базы не удаляются.")
   reply(p,"Для подтверждения за 60 сек: stalker_fullwipe confirm "..tokens[key].value.." FULL_WIPE");return
  end
  local token=tokens[key]

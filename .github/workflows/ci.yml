@@ -1,0 +1,21 @@
+name: Проверка сборки
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: LuaJIT и SQLite
+        run: sudo apt-get update && sudo apt-get install -y luajit libsqlite3-0
+      - name: Синтаксис и smoke-тесты аддонов
+        run: tools/test/run.sh
+      - name: Архив релиза
+        run: python3 tools/build_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stalker-rp
+          path: dist/*.zip
