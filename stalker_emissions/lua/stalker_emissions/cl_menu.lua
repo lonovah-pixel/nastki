@@ -10,31 +10,48 @@ end
 function E.OpenMenu()
  if not E.IsAdmin(LocalPlayer()) then return end
  if IsValid(E.Menu) then E.Menu:Remove() end
- local f=vgui.Create("DFrame");E.Menu=f;f:SetSize(math.min(620,ScrW()-30),math.min(540,ScrH()-30));f:Center();f:SetTitle("КПК / УПРАВЛЕНИЕ ВЫБРОСАМИ");f:MakePopup();f:DockPadding(18,40,18,18)
- f.Paint=function(_,w,h) E.Box(0,0,w,h) end
+ local U,T=STALKER_STYLE,STALKER_THEME
+ local themed=U and U.Window and T and T.C
+ local f
+ if themed then f=U.Window({title="КПК / УПРАВЛЕНИЕ ВЫБРОСАМИ",w=620,h=560})
+ else
+  f=vgui.Create("DFrame");f:SetSize(math.min(620,ScrW()-30),math.min(540,ScrH()-30));f:Center();f:SetTitle("КПК / УПРАВЛЕНИЕ ВЫБРОСАМИ");f:MakePopup();f:DockPadding(18,40,18,18)
+  f.Paint=function(_,w,h) E.Box(0,0,w,h) end
+ end
+ E.Menu=f
  local scroll=vgui.Create("DScrollPanel",f);scroll:Dock(FILL)
- local function label(text)
+ if themed then U.Scroll(scroll) end
+ local function textColor(panel,token) if themed and panel.SetTextColor then panel:SetTextColor(T.C[token or "text"]) end end
+ local function label(text,token)
   local l=vgui.Create("DLabel",scroll);l:Dock(TOP);l:SetTall(35);l:SetText(text);l:SetWrap(true)
+  if themed then l:SetFont("STALKER.Body");textColor(l,token or "muted") end
+  return l
  end
  f.Auto=vgui.Create("DCheckBoxLabel",scroll);f.Auto:Dock(TOP);f.Auto:SetTall(32);f.Auto:SetText("Автоматические выбросы")
+ if themed then f.Auto:SetFont("STALKER.Body");textColor(f.Auto) end
  for _,row in ipairs({{"Min","Минимальный интервал, минут"},{"Max","Максимальный интервал, минут"}}) do
   local s=vgui.Create("DNumSlider",scroll);s:Dock(TOP);s:SetTall(45);s:SetText(row[2]);s:SetMin(1);s:SetMax(1440);s:SetDecimals(0);f[row[1]]=s
+  if themed then textColor(s.Label);textColor(s.TextArea) end
  end
- local function button(text,fn)
-  local b=vgui.Create("DButton",scroll);b:Dock(TOP);b:SetTall(36);b:DockMargin(0,4,0,4);b:SetText(text);b.DoClick=fn
+ local function button(text,fn,kind)
+  local b
+  if themed then b=U.Button(scroll,text,fn,kind) else b=vgui.Create("DButton",scroll);b:SetText(text);b.DoClick=fn end
+  b:Dock(TOP);b:SetTall(36);b:DockMargin(0,4,0,4);return b
  end
- label("Интервал отсчитывается от завершения выброса. Настройки сохраняются.")
+ label(STALKER_SETTINGS and "Интервал отсчитывается от завершения выброса. Остальные параметры — «Комендант» → «Настройки» → «Выбросы»." or "Интервал отсчитывается от завершения выброса. Настройки сохраняются.")
  button("Сохранить настройки",function()
   local a={op="settings",auto=f.Auto:GetChecked(),min=math.Round(f.Min:GetValue()),max=math.Round(f.Max:GetValue())}
   if not E.ValidSettings(a) then notification.AddLegacy("Минимум должен быть не больше максимума",NOTIFY_ERROR,4);return end
   E.Admin(a)
- end)
+ end,"accent")
  button("Начать выброс",function() E.Admin({op="start"}) end)
- button("Остановить выброс",function() E.Admin({op="stop"}) end)
+ button("Остановить выброс",function() E.Admin({op="stop"}) end,"danger")
  label("Следующий автоматический выброс:")
  local status=vgui.Create("DLabel",scroll);status:Dock(TOP);status:SetTall(25)
+ if themed then status:SetFont("STALKER.Head");textColor(status,"accent") end
  status.Think=function(self) self:SetText(E.State.phase>0 and "Выброс активен" or E.State.next>0 and (math.max(0,math.ceil((E.State.next-CurTime())/60)).." мин.") or "Отключён") end
  local vol=vgui.Create("DNumSlider",scroll);vol:Dock(TOP);vol:SetTall(45);vol:SetText("Громкость (для вас)");vol:SetMin(0);vol:SetMax(1);vol:SetDecimals(2);vol:SetConVar("stem_volume")
+ if themed then textColor(vol.Label);textColor(vol.TextArea) end
  E.SyncMenu();net.Start("stem.request");net.SendToServer()
 end
 concommand.Add("stem_menu",E.OpenMenu)

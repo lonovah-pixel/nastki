@@ -1,14 +1,19 @@
 local E=ST_EMISSION
 E.Config={IntervalMin=1800,IntervalMax=3600,AutoStart=true,AutoRoof=true,RoofDistance=4096,
  RoofCheckInterval=1,DamageInterval=1,DamagePlayers=true,DamageNPCs=false,DamageNextBots=false,
- AdminSuperOnly=true,KnockoutSeconds=8,
+ AdminSuperOnly=true,KnockoutSeconds=8,DamageScale=1,
  Phases={{id="warning",name="ПРЕДВЕСТНИК",duration=60,damage=0.1,damageEnd=0.6},
  {id="onset",name="НАЧАЛО ВЫБРОСА",duration=30,damage=0.6,damageEnd=2},
  {id="peak",name="ПИК ВЫБРОСА",duration=45,damage=4,damageEnd=8},
  {id="fade",name="СПАД",duration=25,damage=1,damageEnd=0.1}},
  Sounds={warning="stalker_emissions/warning.ogg",onset="stalker_emissions/onset.ogg",peak="stalker_emissions/peak.ogg",fade="stalker_emissions/fade.ogg"},
  FallbackSounds={warning="ambient/alarms/klaxon1.wav",onset="ambient/levels/citadel/portal_beam_shoot5.wav",peak="ambient/explosions/explode_4.wav",fade="ambient/levels/citadel/portal_beam_shoot6.wav"}}
-function E.IsAdmin(p) return IsValid(p) and (E.Config.AdminSuperOnly and p:IsSuperAdmin() or not E.Config.AdminSuperOnly and p:IsAdmin()) end
+-- Права: общая система «Коменданта»/ULX (право events), без ядра — суперадмин или админ по конфигу.
+function E.IsAdmin(p)
+ if not IsValid(p) then return false end
+ if STALKER_CORE and STALKER_CORE.CanAdmin then return STALKER_CORE.CanAdmin(p,"events") end
+ return E.Config.AdminSuperOnly and p:IsSuperAdmin() or not E.Config.AdminSuperOnly and p:IsAdmin()
+end
 function E.Int(n,a,b) return type(n)=="number" and n==math.floor(n) and n>=a and n<=b end
 function E.ValidSettings(a)
  return type(a)=="table" and type(a.auto)=="boolean" and E.Int(a.min,1,1440) and E.Int(a.max,1,1440) and a.min<=a.max

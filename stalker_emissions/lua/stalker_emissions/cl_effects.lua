@@ -8,7 +8,14 @@ surface.CreateFont("Emission.Title",{font="Trebuchet MS",size=23,weight=700,exte
 surface.CreateFont("Emission.Body",{font="Tahoma",size=15,extended=true})
 local metal=Material("stalker_emissions/metal.png","smooth")
 local panel=Material("stalker_emissions/panel.png","smooth")
+-- Цвета HUD выброса — из общей темы; без ядра остаётся прежняя латунь.
+local function tc(token,r,g,b,a)
+ local T=STALKER_THEME;local c=T and T.C and T.C[token]
+ if c then return Color(c.r,c.g,c.b,a or c.a) end
+ return Color(r,g,b,a or 255)
+end
 local function box(x,y,w,h)
+ if STALKER_STYLE and STALKER_STYLE.Core then STALKER_STYLE.Panel("stalker_emissions",x,y,w,h,true);return end
  surface.SetDrawColor(24,29,20,230);surface.DrawRect(x,y,w,h);surface.SetMaterial(metal);surface.SetDrawColor(255,255,255,210);surface.DrawTexturedRect(x,y,w,h);surface.SetMaterial(panel);surface.DrawTexturedRect(x+3,y+3,w-6,h-6);surface.SetDrawColor(130,129,91,220);surface.DrawOutlinedRect(x,y,w,h)
 end
 E.Box=box
@@ -65,9 +72,9 @@ hook.Add("HUDPaint","STEmission.HUD",function()
  -- Ниже плашки территории группировок (она занимает верх экрана по центру).
  local w=math.min(510,ScrW()-40);local y=math.Round(math.max(150,ScrH()*.16))
  E.Box(ScrW()/2-w/2,y,w,65)
- draw.SimpleText("ВЫБРОС / "..phase.name,"Emission.Title",ScrW()/2,y+10,Color(204,175,111),TEXT_ALIGN_CENTER)
+ draw.SimpleText("ВЫБРОС / "..phase.name,"Emission.Title",ScrW()/2,y+10,tc("accent",204,175,111),TEXT_ALIGN_CENTER)
  local sheltered=IsValid(p) and p:GetNW2Bool("stem_sheltered",false)
- draw.SimpleText(math.max(0,math.ceil(E.State.ends-CurTime())).." сек.  /  "..(sheltered and "В УКРЫТИИ" or "ИЩИТЕ УКРЫТИЕ"),"Emission.Body",ScrW()/2,y+40,sheltered and Color(130,170,105) or Color(214,120,90),TEXT_ALIGN_CENTER)
+ draw.SimpleText(math.max(0,math.ceil(E.State.ends-CurTime())).." сек.  /  "..(sheltered and "В УКРЫТИИ" or "ИЩИТЕ УКРЫТИЕ"),"Emission.Body",ScrW()/2,y+40,sheltered and tc("ok",130,170,105) or tc("danger",214,120,90),TEXT_ALIGN_CENTER)
 end)
 -- Обморок: камера из глаз упавшего тела, затемнение с «пульсом», затем размытое пробуждение.
 surface.CreateFont("Emission.Faint",{font="Trebuchet MS",size=26,weight=700,extended=true})
@@ -107,7 +114,7 @@ hook.Add("DrawOverlay","STEmission.Blackout",function()
  local a=faintAlpha(p);if a<=0 then return end
  local pulse=.9+.1*math.sin(CurTime()*5.5)
  surface.SetDrawColor(0,0,0,255*a*pulse);surface.DrawRect(0,0,ScrW(),ScrH())
- draw.SimpleText("ВЫ ПОТЕРЯЛИ СОЗНАНИЕ","Emission.Faint",ScrW()/2,ScrH()*.62,Color(170,60,45,220*a),TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
+ draw.SimpleText("ВЫ ПОТЕРЯЛИ СОЗНАНИЕ","Emission.Faint",ScrW()/2,ScrH()*.62,tc("danger",170,60,45,220*a),TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 end)
 hook.Add("ShutDown","STEmission.SoundStop",stopSound)
 hook.Add("InitPostEntity","STEmission.Request",function() net.Start("stem.request");net.SendToServer() end)

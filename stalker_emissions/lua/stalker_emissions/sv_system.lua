@@ -6,7 +6,11 @@ file.CreateDir("stalker_emissions")
 local saved=util.JSONToTable(file.Read(path,"DATA") or "")
 if E.ValidSettings(saved) then E.Config.AutoStart=saved.auto;E.Config.IntervalMin=saved.min*60;E.Config.IntervalMax=saved.max*60 end
 function E.Settings() return {auto=E.Config.AutoStart,min=E.Config.IntervalMin/60,max=E.Config.IntervalMax/60} end
-function E.Schedule() E.State.next=E.Config.AutoStart and CurTime()+math.random(E.Config.IntervalMin,E.Config.IntervalMax) or 0 end
+function E.Schedule()
+ -- Границы могут прийти из панели в любом порядке: минимум больше максимума не ломает планировщик.
+ local a,b=math.floor(E.Config.IntervalMin),math.floor(E.Config.IntervalMax)
+ E.State.next=E.Config.AutoStart and CurTime()+math.random(math.max(60,math.min(a,b)),math.max(60,a,b)) or 0
+end
 function E.Send(p)
  local raw=util.TableToJSON({state=E.State,settings=E.Settings()});if not raw or #raw>60000 then return end
  net.Start("stem.state");net.WriteUInt(#raw,16);net.WriteData(raw,#raw);if IsValid(p) then net.Send(p) else net.Broadcast() end
@@ -62,6 +66,7 @@ function E.Knockout(p)
  p.StemKnocked=true
  if p:InVehicle() then p:ExitVehicle() end
  local now,seconds=CurTime(),E.Config.KnockoutSeconds
+ if seconds<=0 then return end
  p:SetNW2Float("stem_unconscious_start",now);p:SetNW2Float("stem_unconscious",now+seconds);p:SetNW2Float("stem_unconscious_until",now+seconds)
  E.CreateBody(p)
  hook.Run("STEmissionUnconscious",p,seconds)
@@ -112,7 +117,7 @@ timer.Create("STEmission.Tick",.25,0,function()
  if now-lastDamage<E.Config.DamageInterval then return end;lastDamage=now
  local phase=E.Config.Phases[state.phase]
  local progress=math.Clamp((now-state.started)/phase.duration,0,1)
- local damage=Lerp(progress,phase.damage,phase.damageEnd)
+ local damage=Lerp(progress,phase.damage,phase.damageEnd)*(E.Config.DamageScale or 1)
  for _,p in ipairs(player.GetAll()) do
   if p:Alive() then
    local sheltered=E.IsSheltered(p);p:SetNW2Bool("stem_sheltered",sheltered)
@@ -161,6 +166,12 @@ net.Receive("stem.admin",function(len,p)
  if a.op=="start" then E.Start() elseif a.op=="stop" then E.Stop(true)
  elseif a.op=="settings" then
   if not E.ValidSettings(a) then return end
+  -- При наличии ядра настройки сохраняются в общем реестре (его видит и панель «Коменданта»).
+  if STALKER_SETTINGS and STALKER_SETTINGS.Defs["emission.auto"] then
+   local S=STALKER_SETTINGS
+   if not (S.Set("emission.auto",a.auto,p) and S.Set("emission.interval_min",a.min,p) and S.Set("emission.interval_max",a.max,p)) then p:ChatPrint("Ошибка сохранения настроек");return end
+   E.Send();p:ChatPrint("[Выброс] Выполнено: "..a.op);return
+  end
   local raw=util.TableToJSON({auto=a.auto,min=a.min,max=a.max},true)
   if not raw then return end
   file.Write(path,raw)

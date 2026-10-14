@@ -1,5 +1,13 @@
 local B=STALKER_BUTCHERING
-local C={bg=Color(20,21,17),panel=Color(32,34,27),raised=Color(41,44,33),brass=Color(95,91,61),text=Color(222,216,188),muted=Color(143,149,119),gold=Color(204,177,101),green=Color(119,167,96),red=Color(190,85,64)}
+-- Палитра берётся из общей темы (STALKER_THEME) при каждой отрисовке; без ядра — исходные цвета полевого набора.
+local fallback={bg=Color(20,21,17),panel=Color(32,34,27),raised=Color(41,44,33),brass=Color(95,91,61),text=Color(222,216,188),muted=Color(143,149,119),gold=Color(204,177,101),green=Color(119,167,96),red=Color(190,85,64),track=Color(12,15,11),edge=Color(52,55,40)}
+local tokens={bg='bg',panel='panel',raised='panel2',brass='line',text='text',muted='muted',gold='accent',green='ok',red='danger',track='track',edge='shadow'}
+local C=setmetatable({},{__index=function(_,k)
+ local T=STALKER_THEME;local token=tokens[k]
+ if T and T.C and token and T.C[token] then return T.C[token] end
+ return fallback[k]
+end})
+local function alpha(col,a) return Color(col.r,col.g,col.b,a) end
 local active,window,pressed,escape=false,nil,false,false
 local scale=1
 local function px(v) return math.floor(v*scale+.5) end
@@ -31,13 +39,13 @@ local function frame(title,step)
  close(true);scale=math.Clamp(math.min(ScrW()/1000,ScrH()/760),.7,1.7);fonts()
  window=vgui.Create('DFrame');window:SetSize(px(820),px(560));window:Center();window:SetTitle('');window:ShowCloseButton(false);window:MakePopup();window:SetDraggable(false)
  window.Paint=function()
-  rect(0,0,820,560,C.bg);border(0,0,820,560);border(5,5,810,550,Color(52,55,40))
+  rect(0,0,820,560,C.bg);border(0,0,820,560);border(5,5,810,550,C.edge)
   rect(6,6,808,81,C.panel);rect(24,26,3,39,C.gold)
   text('ПОЛЕВОЙ НАБОР',40,21,C.gold,'Title');text(title,40,54,C.muted,'Small')
   text('КПК / ОБРАБОТКА ОБРАЗЦОВ',26,102,C.muted,'Small');text(step or '',577,102,C.gold,'Small')
   rect(24,126,772,1,C.brass)
   -- Редкие статичные царапины, без покадрового шума и мерцания.
-  for i=1,12 do rect(8+(i*113)%794,7,4+i%8,1,Color(180,160,95,30)) end
+  for i=1,12 do rect(8+(i*113)%794,7,4+i%8,1,alpha(C.gold,30)) end
   text('ЗОНА  /  ПОЛЕВАЯ ЛАБОРАТОРИЯ',24,531,C.muted,'Small')
  end
  window.OnRemove=function() cancel() end
@@ -58,18 +66,18 @@ local function selector(ent)
    hover=Lerp(math.min(1,FrameTime()*12),hover,s:IsHovered() and 1 or 0)
    rect(0,0,380,111,selected==i and C.raised or C.panel);border(0,0,380,111,selected==i and C.gold or C.brass)
    if selected==i then rect(0,0,3,111,C.gold) end
-   rect(13,16,49,51,Color(21,24,18));text(string.format('%02d',i),21,26,selected==i and C.gold or C.muted,'Title')
+   rect(13,16,49,51,C.track);text(string.format('%02d',i),21,26,selected==i and C.gold or C.muted,'Title')
    text(part.name,77,15,unavailable and C.muted or C.text)
    text(descriptions[part.id] or 'Полевой образец',77,43,C.muted,'Small')
    text('СЛОЖНОСТЬ  ×'..part.difficulty,15,83,C.muted,'Small')
    text(selected==i and 'ВЫБРАНО' or 'ВЫБРАТЬ',273,83,selected==i and C.gold or C.muted,'Small')
-   if hover>.01 then rect(1,109,378,1,Color(204,177,101,math.floor(hover*200))) end
+   if hover>.01 then rect(1,109,378,1,alpha(C.gold,math.floor(hover*200))) end
   end
   p.DoClick=function() selected=i;play('hit') end
  end
  local note=vgui.Create('DPanel',f);note:SetPos(px(24),px(400));note:SetSize(px(772),px(53))
  note.Paint=function()
-  rect(0,0,772,53,Color(44,35,24));text('ОДНА ТУША — ОДИН ВЫБРАННЫЙ ТРОФЕЙ',14,8,C.gold,'Small')
+  rect(0,0,772,53,C.raised);rect(0,0,3,53,C.gold);text('ОДНА ТУША — ОДИН ВЫБРАННЫЙ ТРОФЕЙ',14,8,C.gold,'Small')
   text(unavailable and 'Эта туша уже занята или использована.' or 'После попытки тело исчезнет. Отмена также расходует тушу.',14,29,C.muted,'Small')
  end
  button(f,24,468,222,43,'ЗАКРЫТЬ',function() close(true) end)
@@ -120,10 +128,10 @@ net.Receive('stb.state',function()
   text(elapsed<0 and 'ПРИГОТОВЬТЕСЬ' or elapsed>=#a.rounds*a.seconds and 'ЗАВЕРШЕНИЕ' or ('РАЗРЕЗ 0'..i),0,0,C.gold,'Title')
   text('Нажмите в центре светлой области',0,39,C.muted)
   text(string.format('%04.1f c',math.max(0,a.ends-CurTime())),645,1,C.text,'Title')
-  rect(0,94,772,96,Color(12,15,11));border(0,94,772,96)
+  rect(0,94,772,96,C.track);border(0,94,772,96)
   for tick=0,20 do rect(12+tick*37.4,167,1,tick%5==0 and 15 or 7,C.brass) end
   local w=748;local left=12
-  rect(left+(r.center-r.width/2)*w,105,r.width*w,48,Color(61,81,47))
+  rect(left+(r.center-r.width/2)*w,105,r.width*w,48,alpha(C.green,70))
   rect(left+(r.center-r.width*.075)*w,105,r.width*.15*w,48,C.green)
   local marker=B.Marker(t,r.speed,r.offset)
   rect(left+marker*w-2,99,4,64,C.gold)

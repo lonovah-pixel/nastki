@@ -1,5 +1,13 @@
 local N=STALKER_NPC
-N.Colors={bg=Color(28,26,20),panel=Color(42,38,32),brass=Color(107,93,63),accent=Color(200,169,81),text=Color(217,207,176),muted=Color(138,127,99),green=Color(102,151,81),red=Color(162,43,31)}
+-- Цвета торговца берутся из общей темы (STALKER_THEME) при каждой отрисовке: смена темы применяется сразу.
+-- Без ядра остаётся латунная палитра первого выпуска.
+local fallback={bg=Color(28,26,20),panel=Color(42,38,32),brass=Color(107,93,63),accent=Color(200,169,81),text=Color(217,207,176),muted=Color(138,127,99),green=Color(102,151,81),red=Color(162,43,31)}
+local tokens={bg="bg",panel="panel2",brass="line",accent="accent",text="text",muted="muted",green="ok",red="danger"}
+N.Colors=setmetatable({},{__index=function(_,k)
+    local T=STALKER_THEME;local token=tokens[k]
+    if T and T.C and token and T.C[token] then return T.C[token] end
+    return fallback[k]
+end})
 function N.P(v) return math.Round(v*(N.Scale or 1)) end
 function N.Fonts()
     surface.CreateFont("STNPC.Title",{font="Trebuchet MS",size=N.P(25),weight=500,extended=true})
@@ -19,7 +27,7 @@ function B:Init() self:SetText("");self.Caption="";self.Hover=0 end
 function B:Paint(w,h)
     local c=N.Colors;self.Hover=Lerp(math.min(FrameTime()*12,1),self.Hover,self:IsHovered() and 1 or 0)
     STALKER_STYLE.Panel("stalker_npc",0,0,w,h,self.Active or self:IsHovered())
-    surface.SetDrawColor(200,169,81,30*self.Hover);surface.DrawRect(0,0,w,h)
+    surface.SetDrawColor(c.accent.r,c.accent.g,c.accent.b,30*self.Hover);surface.DrawRect(0,0,w,h)
     STALKER_INV.DrawBrassFrame(0,0,w,h,self.Active or self:IsHovered())
     local lines=STALKER_INV.Wrap(self.Caption,"STNPC.Body",w-N.P(24))
     for i=1,math.min(2,#lines) do draw.SimpleText(lines[i],"STNPC.Body",w/2,h/2+(i-(math.min(2,#lines)+1)/2)*N.P(19),self:IsEnabled() and (self.Active and c.accent or c.text) or c.muted,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER) end
