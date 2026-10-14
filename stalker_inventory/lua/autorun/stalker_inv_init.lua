@@ -15,6 +15,7 @@ if SERVER then
     include("stalker_inv/sv_persistence.lua")
     include("stalker_inv/sv_inventory.lua")
     include("stalker_inv/sv_stash.lua")
+    include("stalker_inv/sv_api.lua")
 else
     for _, f in ipairs(clients) do include("stalker_inv/" .. f) end
 end

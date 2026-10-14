@@ -149,3 +149,8 @@ function meta:GetInventory()
     if SERVER then return self.StalkerInventory end
     if self==LocalPlayer() then return S.Inventory end
 end
+-- Множитель защиты по состоянию: целый предмет — 1, полностью изношенный — 0.5 (общий для сервера и клиента).
+function S.ConditionFactor(item)
+    local d=type(item)=="table" and tonumber(item.durability) or 100
+    return .5+.5*math.Clamp(d,0,100)/100
+end
