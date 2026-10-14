@@ -265,6 +265,14 @@ function util.TraceLine(t)
 end
 function util.TraceHull(t) return {Hit=false,StartSolid=false,AllSolid=false,HitPos=t.endpos,Fraction=1,Entity=NULL} end
 bit=require("bit")
+-- utf8 (Lua 5.3 в GMod) — достаточно для подсчёта и обрезки строк интерфейса.
+utf8=utf8 or {}
+utf8.charpattern="[%z\1-\127\194-\244][\128-\191]*"
+function utf8.len(s) local n=0;for _ in tostring(s):gmatch(utf8.charpattern) do n=n+1 end;return n end
+function utf8.sub(s,i,j) local out={};local k=0;j=j or -1;local len=utf8.len(s);if j<0 then j=len+j+1 end
+ for ch in tostring(s):gmatch(utf8.charpattern) do k=k+1;if k>=i and k<=j then out[#out+1]=ch end end;return table.concat(out) end
+function utf8.codes(s) local i=0;local chars={};for ch in tostring(s):gmatch(utf8.charpattern) do chars[#chars+1]=ch end
+ return function() i=i+1;if chars[i] then return i,chars[i]:byte() end end end
 
 --[[ Консольные переменные и команды ]]
 local convars={}
@@ -581,6 +589,8 @@ function P:StripWeapons() for _,w in pairs(self._weapons) do w:Remove() end;self
 function P:SelectWeapon(c) self._active=c end
 function P:GetActiveWeapon() return self._active and self._weapons[self._active] or NULL end
 function P:Team() return self._team end
+function P:KeyDown(key) return self._keys~=nil and self._keys[key]==true end
+function P:SetKey(key,down) self._keys=self._keys or {};self._keys[key]=down or nil end
 function P:GetMoveType() return self._movetype or MOVETYPE_WALK end
 function P:SetMoveType(m) self._movetype=m end
 function P:GetObserverMode() return OBS_MODE_NONE end
@@ -608,8 +618,16 @@ function P:TakeDamageInfo(d)
  hook.Run("ScalePlayerDamage",self,self._hitgroup or HITGROUP_GENERIC,d)
  local blocked=hook.Run("EntityTakeDamage",self,d)
  if blocked==true then return end
+ hook.Call("HandlePlayerArmorReduction",GAMEMODE,self,d)
  self._health=self._health-d:GetDamage();self._lastDamage=d
  if self._health<=0 and self._alive then M.kill(self,d:GetAttacker()) end
+end
+-- Как в базовом режиме GMod: броня поглощает 80% урона, кроме падения, утопления, яда и радиации.
+function GAMEMODE:HandlePlayerArmorReduction(ply,dmginfo)
+ if ply:Armor()<=0 or bit.band(dmginfo:GetDamageType(),DMG_FALL+DMG_DROWN+DMG_POISON+DMG_RADIATION)~=0 then return end
+ local new=dmginfo:GetDamage()*.2;local armor=dmginfo:GetDamage()-new
+ if armor>ply:Armor() then armor=ply:Armor();new=dmginfo:GetDamage()-armor;ply:SetArmor(0) else ply:SetArmor(ply:Armor()-armor) end
+ dmginfo:SetDamage(new)
 end
 function M.kill(p,attacker)
  attacker=attacker or M.world

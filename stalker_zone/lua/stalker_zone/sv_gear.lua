@@ -25,6 +25,11 @@ hook.Add("EntityTakeDamage","STALKER_ZONE.Resists",function(ent,dmg)
  if resist>0 then dmg:ScaleDamage(1-math.min(resist,Z.Config.ResistCap)/100) end
 end)
 
+-- Урон аномалии игнорирует очки брони HL2 (иначе куртка поглощает 80% и аномалии почти не ранят).
+hook.Add("HandlePlayerArmorReduction","STALKER_ZONE.AnomalyArmor",function(p)
+ if Z.AnomalyVictim==p then return true end
+end)
+
 hook.Add("ScalePlayerDamage","STALKER_ZONE.Helmet",function(p,hitgroup,dmg)
  if hitgroup~=HITGROUP_HEAD then return end
  local gear=Z.Gear[p];local head=gear and gear.headshot

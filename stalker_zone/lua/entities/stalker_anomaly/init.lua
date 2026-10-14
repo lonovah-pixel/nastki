@@ -21,9 +21,13 @@ local function physicsProp(e)
 end
 function ENT:Hurt(e,amount,force)
  local cfg=self:Config();local dmg=DamageInfo()
- dmg:SetDamage(amount);dmg:SetDamageType(cfg.dmgType);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(self)
+ dmg:SetDamage(amount*(STALKER_ZONE.Config.AnomalyDamageScale or 1));dmg:SetDamageType(cfg.dmgType);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(self)
  dmg:SetDamagePosition(e:WorldSpaceCenter());if force then dmg:SetDamageForce(force) end
+ -- Очки брони HL2 поглощают 80% любого урона: аномалия бьёт в обход них (см. sv_gear.lua),
+ -- а защищают характеристики костюма и артефактов.
+ if e:IsPlayer() then STALKER_ZONE.AnomalyVictim=e end
  e:TakeDamageInfo(dmg)
+ STALKER_ZONE.AnomalyVictim=nil
 end
 function ENT:Fire(sound)
  local cfg=self:Config();self:SetTriggered(CurTime())
@@ -40,9 +44,19 @@ local function launch(e,dir,force)
  else local phys=physicsProp(e);if phys then phys:ApplyForceCenter(dir*force*phys:GetMass()) end end
 end
 
+-- Ошибка в одном тике не должна останавливать аномалию и засорять консоль.
 function ENT:Think()
+ local ok,err=pcall(self.Tick,self)
+ if not ok then
+  STALKER_ZONE.AnomalyVictim=nil
+  if (self.NextError or 0)<CurTime() then self.NextError=CurTime()+30;ErrorNoHalt("[STALKER Zone] Аномалия "..tostring(self:GetKind())..": "..tostring(err).."\n") end
+ end
+ self:NextThink(CurTime()+(self.Sleep and .3 or .1))
+ return true
+end
+function ENT:Tick()
  local cfg=self:Config();if not cfg then return end
- local now=CurTime();self:NextThink(now+.1)
+ local now=CurTime();self.Sleep=false
  local pos=self:GetPos();local center=pos+Vector(0,0,24)
  local reach=cfg.pull or cfg.radius
  local inside,near={},{}
@@ -53,7 +67,7 @@ function ENT:Think()
   end
  end
  -- Пустая округа: проверяем реже, чтобы десятки аномалий не грузили сервер.
- if #inside==0 and #near==0 then self:NextThink(now+.3);return true end
+ if #inside==0 and #near==0 then self.Sleep=true;return end
  local kind=self:GetKind()
  if kind=="electro" then
   if #inside>0 and now>=self.Ready then
@@ -93,5 +107,4 @@ function ENT:Think()
    end
   end
  end
- return true
 end

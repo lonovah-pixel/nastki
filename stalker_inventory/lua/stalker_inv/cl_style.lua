@@ -1,4 +1,6 @@
 -- Общий стиль КПК. Материалы каждого аддона загружаются независимо.
+-- Если загружен STALKER Core, стиль и цвета берутся из его темы оформления.
+if STALKER_STYLE and STALKER_STYLE.Core then return end
 STALKER_STYLE=STALKER_STYLE or {}
 local U=STALKER_STYLE
 U.Materials=U.Materials or {}

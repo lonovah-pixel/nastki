@@ -10,7 +10,15 @@ function ENT:Initialize()
  local cfg=self:Config();local r=cfg and (cfg.pull or cfg.radius) or 128
  self:SetRenderBounds(Vector(-r,-r,-16),Vector(r,r,r*1.6))
  self.NextParticle=0;self.Seed=math.Rand(0,100)
- if cfg and cfg.idle then self.Loop=self:StartLoopingSound(cfg.idle) end
+end
+-- Тип аномалии может прийти по сети позже Initialize: звук и границы отрисовки догоняют его.
+function ENT:EnsureSetup(cfg)
+ if self.SetupKind==self:GetKind() then return end
+ self.SetupKind=self:GetKind()
+ local r=cfg.pull or cfg.radius
+ self:SetRenderBounds(Vector(-r,-r,-16),Vector(r,r,r*1.6))
+ if self.Loop then self:StopLoopingSound(self.Loop);self.Loop=nil end
+ if cfg.idle then self.Loop=self:StartLoopingSound(cfg.idle) end
 end
 function ENT:OnRemove()
  if self.Loop then self:StopLoopingSound(self.Loop) end
@@ -32,7 +40,9 @@ end
 
 function ENT:Think()
  local cfg=self:Config();local lp=LocalPlayer()
- if not cfg or not IsValid(lp) or not effectsCvar:GetBool() then return end
+ if not cfg or not IsValid(lp) then return end
+ self:EnsureSetup(cfg)
+ if not effectsCvar:GetBool() then return end
  local pos=self:GetPos();local dist=lp:GetPos():DistToSqr(pos)
  if dist>2500^2 or CurTime()<self.NextParticle then return end
  local active=CurTime()-self:GetTriggered()<.6

@@ -7,6 +7,7 @@ Z.Config={
  MaxFields=64,MaxMutantZones=64,
  -- Аномалии
  AnomalyMinGap=140,           -- минимальное расстояние между аномалиями поля
+ AnomalyDamageScale=1,        -- множитель урона всех аномалий
  MaxArtifacts=60,             -- общий лимит артефактов на карте
  ArtifactRefreshMinutes=45,   -- досыпать артефакты без выброса (0 — только после выброса)
  ArtifactPickupRange=110,
