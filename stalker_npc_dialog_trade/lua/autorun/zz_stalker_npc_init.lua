@@ -2,7 +2,7 @@ if SERVER and STALKER_WIPE and STALKER_WIPE.Blocked then return end
 -- Зависимость загружается первой, а проверка API не подменяет отсутствующий Inventory.
 STALKER_NPC=STALKER_NPC or {}
 local N=STALKER_NPC
-local shared={"sh_config.lua","sh_locale.lua","sh_trade.lua"}
+local shared={"sh_config.lua","sh_locale.lua","sh_trade.lua","sh_settings.lua"}
 local client={"cl_ui.lua"}
 if SERVER then
     for _,f in ipairs(shared) do AddCSLuaFile("stalker_npc/"..f) end

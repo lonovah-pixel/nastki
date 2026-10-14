@@ -1,7 +1,7 @@
 if SERVER and STALKER_WIPE and STALKER_WIPE.Blocked then return end
 STALKER_BUTCHERING=STALKER_BUTCHERING or {}
 local path='stalker_butchering/'
-for _,name in ipairs({'sh_config.lua','sh_core.lua','sh_items.lua'}) do
+for _,name in ipairs({'sh_config.lua','sh_core.lua','sh_items.lua','sh_settings.lua'}) do
  if SERVER then AddCSLuaFile(path..name) end
  include(path..name)
 end

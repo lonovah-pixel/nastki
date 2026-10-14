@@ -15,12 +15,13 @@ end
 B.RegisterItems()
 hook.Add('STALKER_INV_Ready','STB.Items',B.RegisterItems)
 -- Не заменяем PriceMultiplier: дипломатия и цены войны продолжают работать.
-function B.RegisterTrade()
+-- force — пересчитать цены после изменения в админ-панели (иначе цены, заданные торговцу вручную, не трогаем).
+function B.RegisterTrade(force)
  local N=STALKER_NPC;if not N or not N.Config then return end
  for id,t in pairs(N.Config.Traders) do if B.Config.TraderIDs[id] or t.AcceptButchering then
   for _,part in ipairs(B.Config.Parts) do for _,grade in ipairs(B.Order) do if grade~='fail' then for _,toxic in ipairs({false,true}) do
    local item=B.ItemID(part.id,grade,toxic)
-   t.prices[item]=t.prices[item] or {buy=math.floor(part.price*2*(toxic and .4 or 1)),sell=math.floor(part.price*(toxic and .4 or 1))}
+   t.prices[item]=(not force and t.prices[item]) or {buy=math.floor(part.price*2*(toxic and .4 or 1)),sell=math.floor(part.price*(toxic and .4 or 1))}
   end end end end
  end end
 end

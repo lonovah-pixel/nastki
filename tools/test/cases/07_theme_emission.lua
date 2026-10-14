@@ -32,3 +32,14 @@ else
  M.protect("HUD выброса",hook.Run,"HUDPaint")
  E.State.phase=0
 end
+
+-- Настройки разделки и торговцев в реестре админ-панели.
+section("Разделка и торговля: настройки ("..M.Realm..")")
+check(S.Defs["butcher.rounds"] and S.Defs["butcher.price_rare"] and S.Defs["trade.distance"],"настройки разделки и торговли зарегистрированы")
+if SERVER then
+ check(S.Set("butcher.rounds",7) and STALKER_BUTCHERING.Config.Rounds==3,"разрезов не больше трёх (ограничение сети)")
+ local trader=STALKER_NPC.Config.Traders.sidor;local item=STALKER_BUTCHERING.ItemID("rare","perfect",false)
+ check(S.Set("butcher.price_rare",1000) and trader.prices[item].sell==1000,"цена трофея применяется к торговцу")
+ for _,id in ipairs({"butcher.rounds","butcher.price_rare"}) do S.Set(id,nil) end
+ check(trader.prices[item].sell==650 and STALKER_BUTCHERING.Config.Rounds==3,"сброс цены и разрезов")
+end
