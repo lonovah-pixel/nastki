@@ -5,12 +5,12 @@ local function columns()
  local right=vgui.Create('DScrollPanel',F.Body);right:Dock(FILL);STALKER_STYLE.Scroll(right);return left,right
 end
 function F.RelationBar(x,y,w,h,points,war)
- local colors={Color(170,64,47),Color(187,157,63),Color(88,148,86)}
+ local colors={F.C.red,F.C.warn,F.C.green}
  surface.SetDrawColor(colors[1]);surface.DrawRect(x,y,w*.25,h)
  surface.SetDrawColor(colors[2]);surface.DrawRect(x+w*.25,y,w*.5,h)
  surface.SetDrawColor(colors[3]);surface.DrawRect(x+w*.75,y,w*.25,h)
  local marker=x+math.Clamp((points+100)/200,0,1)*(w-3)
- surface.SetDrawColor(239,234,208);surface.DrawRect(marker,y-3,3,h+6)
+ surface.SetDrawColor(F.C.text);surface.DrawRect(marker,y-3,3,h+6)
  surface.SetDrawColor(war and F.C.red or F.C.brass);surface.DrawOutlinedRect(x-1,y-1,w+2,h+2)
 end
 function F.RelationCard(parent,from,to)
@@ -40,40 +40,7 @@ local function memberPicker(parent,s)
 end
 function F.ManagementPage(tab,s)
  local function act(data) F.Action(data) end
- if tab=='upgrades' and F.Mode=='leader' and s.leader then
-  local list=vgui.Create('DScrollPanel',F.Body);list:Dock(FILL);STALKER_STYLE.Scroll(list)
-  local d=(s.progression or {})[s.me.faction] or {credits=0}
-  F.Label(list,F.L('supply_balance')..': '..(d.credits or 0),40)
-  F.Label(list,F.L('supply_help'),70)
-  for key,cfg in SortedPairs(F.Upgrades) do
-   local id=key;local level=F.UpgradeLevel(s,s.me.faction,id);local price=cfg.costs[level+1]
-   F.Label(list,F.Text(cfg.name)..' / '..level..' / '..#cfg.costs,32)
-   F.Label(list,F.Text(cfg.description),50)
-   local b=btn(list,price and (F.L('upgrade_buy')..' / '..price) or F.L('upgrade_max'),function()
-    Derma_Query(F.Text(cfg.name)..' / '..tostring(price)..' '..F.L('supply_balance'),F.L('upgrade_buy'),F.L('accept'),function()
-     act({kind='upgrade',upgrade=id,level=level})
-    end,F.L('close'))
-   end)
-   b:SetEnabled(price~=nil and (d.credits or 0)>=price)
-  end
-  return true
- elseif tab=='members'  and F.Mode=='leader' and s.leader then
-  local list=vgui.Create('DScrollPanel',F.Body);list:Dock(FILL);STALKER_STYLE.Scroll(list)
-  F.Label(list,'ДОПУСК НА ВСТУПЛЕНИЕ (24 ЧАСА)',36)
-  for _,candidate in ipairs(s.candidates or {}) do local c=candidate
-   F.Label(list,c.name..' / '..c.sid,28)
-   btn(list,'Разрешить бесплатное вступление',function() act({kind='leader',op='approve',sid=c.sid}) end)
-   btn(list,'Отозвать допуск',function() act({kind='leader',op='revoke',sid=c.sid}) end)
-  end
-  F.Label(list,'СОСТАВ / '..F.Name(s.me.faction),40)
-  for _,m in ipairs(s.members or {}) do
-   local member=m;F.Label(list,member.name..' / '..member.sid,30)
-   if member.sid~=LocalPlayer():SteamID64() then btn(list,'Исключить из группировки',function()
-    Derma_Query('Исключить '..member.name..'?','Личный состав','Исключить',function() act({kind='leader',op='expel',sid=member.sid}) end,'Отмена')
-   end) end
-  end
-  return true
- elseif tab=='people' and F.Mode=='admin' and s.admin then
+ if tab=='people' and F.Mode=='admin' and s.admin then
   local left,right=columns();F.Label(left,'ИГРОК И ГРУППИРОВКА',36)
   local picker=memberPicker(left,s);local faction=F.Combo(left,'loner')
   local function memberAction(op,extra)
@@ -108,6 +75,7 @@ function F.ManagementPage(tab,s)
   return true
  elseif tab=='traders' and F.Mode=='admin' and s.admin then
   local left,right=columns();F.Label(left,'ТОРГОВЦЫ ГРУППИРОВОК',40)
+  if not (STALKER_NPC and STALKER_NPC.Config and STALKER_NPC.Config.Traders) then F.Label(left,'Аддон торговцев (stalker_npc_dialog_trade) не установлен.',60);return true end
   local c=vgui.Create('DComboBox',left);c:Dock(TOP);c:SetTall(38);F.StyleCombo(c);c.Profile='sidor';c:SetValue('Сидорович / Одиночки')
   for id,p in SortedPairs(STALKER_NPC.Config.Traders) do c:AddChoice(STALKER_NPC.Text(p.name)..' / '..F.Name(p.Faction),id) end
   c.OnSelect=function(_,_,_,id) c.Profile=id end

@@ -58,7 +58,13 @@ end)
 
 -- Check prospective job before DarkRP switches it; fee is charged only by SetFaction.
 hook.Add("playerCanChangeTeam","STFW.AdmissionJob",function(p,teamID,force)
- if not F.Config.DarkRP.Enabled or F.Config.DarkRP.Mode~="jobs" then return end
+ if not F.Config.DarkRP.Enabled then return end
+ -- Режим recruiter: вступление только у вербовщика или по приглашению; профессию группировки выбрать в меню профессий нельзя.
+ if F.Config.DarkRP.Mode~="jobs" then
+  local job=RPExtraTeams and RPExtraTeams[teamID]
+  if not force and job and job.stalkerFaction and not F.IsMember(p,job.stalkerFaction) then return false,"Вступление в группировку — только у её вербовщика или по приглашению лидера." end
+  return
+ end
  local id=F.JobFaction(teamID);if not id then return end
  local d=F.Load(p);if d and d.joined and d.faction==id then return end
  local ok,reason=F.CanJoin(p,id,teamID);if not ok then return false,F.L(reason) end

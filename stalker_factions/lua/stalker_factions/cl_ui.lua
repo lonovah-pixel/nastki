@@ -10,7 +10,8 @@ function F.Action(a)
 end
 net.Receive("stfw.state",function()
  local n=net.ReadUInt(16);if n>60000 then return end;local raw=util.Decompress(net.ReadData(n),524288);local state=raw and util.JSONToTable(raw)
- if not state or not state.me then return end;F.State=state
+ if not state or not state.me then return end;F.State=state;F.StateAt=CurTime()
+ hook.Run("STFW_StateUpdated",state)
  -- Периодический снимок не завершает запрос и не уничтожает набранные поля.
  if state.reply and F.Pending and state.reply.id==F.Pending.id then
   local pending=F.Pending;F.Pending=nil
@@ -30,14 +31,16 @@ function F.ShowPage(tab)
  if not IsValid(F.Body) or not F.State then return end
  if F.SaveEditorDraft then F.SaveEditorDraft();F.SaveEditorDraft=nil end
  local mode=F.Mode or "member"
- local permitted=({member={status=true,map=true,rank=true},leader={status=true,map=true,diplomacy=true,members=true,upgrades=true},admin={admin=true,people=true,diplomacy_admin=true,traders=true}})[mode]
- if not permitted or not permitted[tab] or (mode=="admin" and not F.State.admin) or (mode=="leader" and not F.State.leader) then tab="status";F.Mode="member" end
+ local permitted=({member={status=true,map=true,rank=true},admin={admin=true,people=true,diplomacy_admin=true,traders=true}})[mode]
+ if not permitted or not permitted[tab] or (mode=="admin" and not F.State.admin) then tab="status";F.Mode="member" end
  F.Tab=tab;for id,b in pairs(F.TabButtons or {}) do b.Active=id==tab end;F.Body:Clear();local s=F.State;local me=s.me
  local function act(a) F.Action(a) end
  if F.ManagementPage(tab,s) then return end
  if tab=="status" then
   local left,right=split(F.Body);local cfg=F.Factions[me.faction];local _,rank=F.Rank(me.xp)
-  F.Label(left,"[ "..cfg.tag.." ]  "..F.Name(me.faction),44);F.Label(left,F.Config.Language=="ru" and rank[2] or rank[3]);F.Label(left,F.Text(cfg.description),64);F.Label(left,F.Text(cfg.ideology),64);F.Label(left,F.L("nojoin"),70)
+  F.Label(left,"[ "..cfg.tag.." ]  "..F.Name(me.faction),44);F.Label(left,F.Config.Language=="ru" and rank[2] or rank[3])
+  if me.joined then F.Label(left,"Звание: "..(me.role=="leader" and "Лидер" or F.FRankName(me.frank))..(s.count and ("  /  состав "..s.count..(s.cap and s.cap>0 and (" из "..s.cap) or "")) or "")) end
+  F.Label(left,F.Text(cfg.description),64);F.Label(left,F.Text(cfg.ideology),64);F.Label(left,F.L("nojoin"),70)
   F.Label(right,"XP "..me.xp.."  /  ● "..me.captures.."  /  ⚔ "..me.kills,30)
   F.Label(right,F.L("diplomacy"),36)
   local keys=table.GetKeys(F.Factions);table.sort(keys)
@@ -56,7 +59,7 @@ function F.ShowPage(tab)
    F.Box(0,0,w,h);local points=F.State.points;local minx,maxx,miny,maxy=math.huge,-math.huge,math.huge,-math.huge
    for _,pt in pairs(points) do minx=math.min(minx,pt.pos.x);maxx=math.max(maxx,pt.pos.x);miny=math.min(miny,pt.pos.y);maxy=math.max(maxy,pt.pos.y) end
    if minx==math.huge then return end
-   surface.SetDrawColor(72,81,61,90);for x=20,w,32 do surface.DrawLine(x,0,x,h) end;for y=20,h,32 do surface.DrawLine(0,y,w,y) end
+   surface.SetDrawColor(F.C.line.r,F.C.line.g,F.C.line.b,90);for x=20,w,32 do surface.DrawLine(x,0,x,h) end;for y=20,h,32 do surface.DrawLine(0,y,w,y) end
    for id,pt in pairs(points) do local x=40+(maxx==minx and .5 or (pt.pos.x-minx)/(maxx-minx))*(w-80);local y=h-50-(maxy==miny and .5 or (pt.pos.y-miny)/(maxy-miny))*(h-90)
     local c=F.Factions[pt.owner];c=c and Color(unpack(c.color)) or F.C.muted;surface.SetDrawColor(c);surface.DrawRect(x-5,y-5,10,10);local align=x<100 and TEXT_ALIGN_LEFT or (x>w-100 and TEXT_ALIGN_RIGHT or TEXT_ALIGN_CENTER)
     local text=pt.name;surface.SetFont("STFW.Small");if surface.GetTextSize(text)>180 then text=utf8.sub(text,1,20).."…" end
@@ -67,31 +70,13 @@ function F.ShowPage(tab)
   details.Paint=function(_,w,h)
    local pt=F.State.points[F.FocusPoint or ""]
    F.Box(0,0,w,h);if not pt then draw.SimpleText(F.L("select_territory"),"STFW.Body",12,14,F.C.muted);return end
-   draw.SimpleText(F.Name(pt.owner).." / "..math.floor((pt.progress or 0)*100).."%","STFW.Body",12,12,F.C.accent)
+   draw.SimpleText((pt.owner~="" and F.Name(pt.owner) or "Ничья точка").." / "..math.floor((pt.progress or 0)*100).."%"..(pt.armed and (" / захват: "..F.Name(pt.armed)) or ""),"STFW.Body",12,12,F.C.accent)
    draw.SimpleText(F.L(F.TerritoryStatus(pt,F.State.me.faction,F.State.me.joined,F.State)),"STFW.Small",12,40,F.C.text)
    draw.SimpleText(F.L("point_radius")..": "..pt.radius.." / "..F.L("base_spawn")..": "..(pt.base and "✓" or "—"),"STFW.Small",12,66,F.C.muted)
   end
   for key,r in pairs(s.relations) do if r.war then F.Label(right,F.L("war").." / "..key.."  "..util.TableToJSON(r.scores or {}),44) end end
   F.Label(right,F.L("history"),30)
   for i=#s.history,math.max(1,#s.history-9),-1 do local h=s.history[i];F.Label(right,F.Name(h.winner).." → "..F.Name(h.loser).."  /  "..os.date("%d.%m %H:%M",h.time),32) end
- elseif tab=="diplomacy" then
-  local left,right=split(F.Body);F.Label(left,F.L("target"));local target=F.Combo(left,me.faction=="duty" and "freedom" or "duty");local points=F.DiplomacySlider(left,0)
-  F.RelationCard(right,me.faction,function() return target.StfwValue end)
-  local peace=vgui.Create("DCheckBoxLabel",left);peace:Dock(TOP);peace:SetTall(32);peace:SetText(F.L("peace"));peace:SetTextColor(F.C.text);peace:SetValue(true)
-  button(left,F.L("send"),function() act({kind="diplomacy",op="propose",from=me.faction,to=target.StfwValue,points=math.Round(points:GetValue()),peace=peace:GetChecked()}) end)
-  button(left,F.L("start"),function() Derma_Query(F.L("start").." / "..F.Name(target.StfwValue),F.L("diplomacy"),F.L("accept"),function() act({kind="diplomacy",op="war",from=me.faction,to=target.StfwValue}) end,F.L("close")) end)
-  F.Label(left,F.L("leader")..": "..(s.leaders[me.faction] or F.L("offline")),60)
-  F.Label(right,F.L("pending"),36)
-  for _,proposal in pairs(s.proposals) do local p=proposal
-   if p.from==me.faction or p.to==me.faction then
-   F.Label(right,F.Name(p.from).." → "..F.Name(p.to).."  /  "..p.points.."  /  "..(p.peace and F.L("peace") or "—"),45)
-   if p.to==me.faction then
-    button(right,F.L("accept"),function() act({kind="diplomacy",op="accept",from=p.to,to=p.from,token=p.token}) end)
-    button(right,F.L("reject"),function() act({kind="diplomacy",op="reject",from=p.to,to=p.from,token=p.token}) end)
-    button(right,F.L("counter"),function() target.StfwValue=p.from;target:SetValue(F.Name(p.from));points:SetValue(p.points);peace:SetValue(p.peace) end)
-   end
-   end
-  end
  elseif tab=="admin" and s.admin then
   local left,right=split(F.Body)
   F.Label(left,F.L("point_settings"),34)
@@ -133,56 +118,48 @@ function F.ShowPage(tab)
 end
 function F.Open(initialTab,mode)
  mode=mode or "member"
- if mode=="admin" and not LocalPlayer():IsSuperAdmin() then return end
- if mode=="leader" and not (F.State and F.State.leader) then notification.AddLegacy("Меню доступно назначенному лидеру",NOTIFY_ERROR,4);F.Request();return end
+ if mode=="leader" then return F.OpenCommand and F.OpenCommand() end
+ if mode=="admin" and not ((F.State and F.State.admin) or LocalPlayer():IsSuperAdmin()) then F.Request();return end
  if F.SaveEditorDraft then F.SaveEditorDraft();F.SaveEditorDraft=nil end
  F.Request();if IsValid(F.Frame) then F.Frame:Remove() end
+ if IsValid(F.CommandFrame) then F.CommandFrame:Remove() end
  F.Mode=mode
- local frame=vgui.Create("DFrame");F.Frame=frame;frame:SetSize(math.min(ScrW()-48,1180),math.min(ScrH()-48,760));frame:Center();frame:SetTitle("");frame:MakePopup();frame:SetSizable(false);frame:SetAlpha(0);frame:AlphaTo(255,.18)
- frame.Paint=function(_,w,h)
-  STALKER_STYLE.Frame("stalker_factions",w,h)
-  draw.SimpleText(mode=="admin" and "КПК / АДМИНИСТРИРОВАНИЕ" or mode=="leader" and "КПК / КОМАНДОВАНИЕ" or "КПК / ГРУППИРОВКА","STFW.Title",22,28,F.C.accent)
-  draw.SimpleText(mode=="admin" and "SUPERADMIN" or mode=="leader" and "ЛИЧНЫЙ СОСТАВ И ПЕРЕГОВОРЫ" or "ЛИЧНЫЕ ДАННЫЕ","STFW.Small",22,h-24,F.C.muted)
+ local U=STALKER_STYLE;local frame
+ local title=mode=="admin" and "КПК / АДМИНИСТРИРОВАНИЕ ГРУППИРОВОК" or "КПК / ГРУППИРОВКА"
+ if U.Window then
+  -- Общее окно КПК из ядра: тема, заголовок, закрытие по Escape.
+  frame=U.Window({title=title,w=1180,h=760,onClose=function() if F.SaveEditorDraft then F.SaveEditorDraft();F.SaveEditorDraft=nil end end})
+  frame.Close=frame.Remove
+ else
+  frame=vgui.Create("DFrame");frame:SetSize(math.min(ScrW()-48,1180),math.min(ScrH()-48,760));frame:Center();frame:SetTitle("");frame:MakePopup();frame:SetSizable(false)
+  frame.Paint=function(_,w,h) STALKER_STYLE.Frame("stalker_factions",w,h);draw.SimpleText(title,"STFW.Title",22,28,F.C.accent) end
+  frame:DockPadding(20,76,20,38)
+  frame.OnClose=function() if F.SaveEditorDraft then F.SaveEditorDraft();F.SaveEditorDraft=nil end end
  end
- frame:DockPadding(20,76,20,38)
- local tabs=vgui.Create("DPanel",frame);tabs:Dock(LEFT);tabs:SetWide(180);tabs:DockMargin(0,0,18,0);tabs.Paint=nil
+ F.Frame=frame
+ local tabs=vgui.Create("DPanel",frame);tabs:Dock(LEFT);tabs:SetWide(190);tabs:DockMargin(0,0,18,0);tabs.Paint=nil
  F.TabButtons={}
  local pages=mode=="admin" and {{"admin","Точки и базы"},{"people","Игроки и лидеры"},{"diplomacy_admin","Дипломатия"},{"traders","Торговцы"}}
-  or mode=="leader" and {{"status","Группировка"},{"diplomacy","Переговоры"},{"members","Личный состав"},{"upgrades","Развитие группировки"},{"map","Территории"}}
   or {{"status","Группировка"},{"map","Территории"},{"rank","Ранг и задачи"}}
  for _,v in ipairs(pages) do local tab=v[1];local b=button(tabs,v[2],function() F.ShowPage(tab) end);F.TabButtons[tab]=b end
  button(tabs,"Обновить данные",function() F.RefreshPage=true;F.Request() end)
  if mode=="member" then
-  if F.State and F.State.leader then button(tabs,"Меню лидера →",function() F.Open("diplomacy","leader") end) end
-  if LocalPlayer():IsSuperAdmin() then button(tabs,"Админ-панель →",function() F.Open("admin","admin") end) end
+  if F.State and F.State.command then button(tabs,"Командование →",function() F.OpenCommand() end) end
+  if (F.State and F.State.admin) or LocalPlayer():IsSuperAdmin() then button(tabs,"Админ-панель →",function() F.Open("admin","admin") end) end
  else button(tabs,"Личное меню →",function() F.Open("status","member") end) end
  F.Body=vgui.Create("DPanel",frame);F.Body:Dock(FILL);F.Body.Paint=nil
- frame.OnClose=function() if F.SaveEditorDraft then F.SaveEditorDraft();F.SaveEditorDraft=nil end end
  frame.Think=function() if not frame.initialized and F.State then frame.initialized=true;frame:InvalidateLayout(true);F.Body:InvalidateLayout(true);F.ShowPage(initialTab or (mode=="admin" and "admin" or "status")) end end
 end
 concommand.Add("stfw_menu",function() F.Open() end)
-concommand.Add("stfw_leader",function() F.Open("diplomacy","leader") end)
+concommand.Add("stfw_leader",function() if F.OpenCommand then F.OpenCommand() end end)
 concommand.Add("stfw_admin",function() F.Open("admin","admin") end)
-net.Receive("stfw.recruit",function()
- local ent=net.ReadEntity();local canJoin=net.ReadBool();local reason=net.ReadString();local seconds=net.ReadUInt(32);if not IsValid(ent) then return end
- local id=ent:GetFactionID();local faction=F.Factions[id];if not faction then return end
- if IsValid(F.RecruitFrame) then F.RecruitFrame:Remove() end
- local frame=vgui.Create("DFrame");F.RecruitFrame=frame;frame:SetSize(math.min(620,ScrW()-40),math.min(490,ScrH()-40));frame:Center();frame:SetTitle("");frame:MakePopup();frame:DockPadding(24,70,24,24)
- frame.Paint=function(_,w,h) F.Box(0,0,w,h,true);draw.SimpleText(F.L("recruit").." // "..F.Name(id),"STFW.Title",24,30,F.C.accent) end
- F.Label(frame,F.Config.Language=="ru" and "Зона не прощает одиночных ошибок. Нам нужны люди, готовые держать слово и защищать наши территории." or "The Zone punishes mistakes. We need people who keep their word and defend our territory.",70)
- F.Label(frame,F.Text(faction.description),50)
- F.Label(frame,canJoin and F.L("recruit_ready") or (F.L(reason)..(seconds>0 and (" / "..seconds.." s") or "")),54)
- F.Label(frame,"Взнос: "..tostring(F.Config.JoinFees[id] or F.Config.JoinFee).." $ или бесплатный допуск лидера",44)
- local join=button(frame,F.L("join").." — "..F.Name(id),function() Derma_Query("Подтвердить вступление? При отсутствии допуска будет списан взнос.","Вступление","Вступить",function() if not IsValid(ent) then return end;net.Start("stfw.recruit");net.WriteUInt(ent:EntIndex(),16);net.WriteBool(true);net.SendToServer();frame:Close() end,"Отмена") end);join:SetEnabled(canJoin)
- button(frame,F.L("close"),function() frame:Close() end)
-end)
-
 local key=CreateClientConVar("stfw_key",tostring(KEY_F6),true,false)
 local wasDown=false
 hook.Add("Think","STFW.Toggle",function()
  local down=input.IsKeyDown(key:GetInt())
- if down and not wasDown and IsValid(LocalPlayer()) and not gui.IsGameUIVisible() and (IsValid(F.Frame) or not IsValid(vgui.GetKeyboardFocus())) then
-  if IsValid(F.Frame) then F.Frame:Close() else F.Open() end
+ local open=IsValid(F.Frame) or IsValid(F.CommandFrame)
+ if down and not wasDown and IsValid(LocalPlayer()) and not gui.IsGameUIVisible() and (open or not IsValid(vgui.GetKeyboardFocus())) then
+  if open then if IsValid(F.Frame) then F.Frame:Remove() end;if IsValid(F.CommandFrame) then F.CommandFrame:Remove() end else F.Open() end
  end
  wasDown=down
 end)

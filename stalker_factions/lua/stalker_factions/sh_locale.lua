@@ -36,3 +36,37 @@ for key,row in pairs(fixes) do F.Locale.ru[key]=row[1];F.Locale.en[key]=row[2] e
 
 F.Locale.ru.admission_required="Нужны деньги на взнос или действующий допуск лидера"
 F.Locale.en.admission_required="Entry fee or valid leader approval required"
+
+-- Вступление, состав, казна, захват по действию и способности командования.
+local extra={
+ faction_full={"Группировка заполнена","Faction is full"},
+ leader_banned={"Лидер группировки запретил вам вступление","The faction leader banned you from joining"},
+ territory_threat={"Вашу точку захватывают! Удерживайте E на флаге, чтобы сбросить захват","Your point is under attack! Hold E on the flag to reset"},
+ territory_armed={"Точка готова к захвату: удерживайте зону","Point armed: hold the area"},
+ territory_need_action={"Удерживайте E на флаге, чтобы начать захват","Hold E on the flag to start capturing"},
+ capture_need_member={"Захватывать точки могут только члены группировок","Only faction members can capture points"},
+ capture_own={"Точка уже под контролем вашей группировки","Your faction already controls this point"},
+ capture_enter={"Встаньте в зону точки без noclip и защиты возрождения","Stand inside the point without noclip or spawn protection"},
+ capture_armed={"Точка уже готова к захвату вашей группировкой","Your faction has already armed this point"},
+ invite_pending={"Приглашение уже отправлено и ждёт ответа","Invitation is already pending"},
+ invite_invalid={"Приглашение больше не действует","Invitation is no longer valid"},
+ invite_expired={"Время приглашения истекло","Invitation expired"},
+ ban_slot_taken={"Слот запрета занят: сначала снимите текущий запрет","Ban slot is taken: lift the current ban first"},
+ ban_money={"Не хватает денег на запрет вступления","Not enough money for the ban"},
+ no_darkrp={"Кошелёк DarkRP недоступен","DarkRP wallet unavailable"},
+ treasury_low={"В казне недостаточно денег","Not enough money in the treasury"},
+ amount_invalid={"Укажите корректную сумму","Enter a valid amount"},
+ rank_limit={"Звание уже предельное","Rank limit reached"},
+ not_member={"Игрок не состоит в вашей группировке","Player is not in your faction"},
+ member_offline={"Игрок не в сети","Player is offline"},
+ target_leader={"Нельзя применить к лидеру","Not applicable to the leader"},
+ ability_cooldown={"Способность перезаряжается","Ability on cooldown"},
+ ability_rank={"Недостаточно высокое звание для способности","Rank too low for this ability"},
+ ability_unknown={"Нет такой способности","Unknown ability"},
+ dead={"Действие недоступно, пока вы мертвы","Unavailable while dead"},
+ admission_required={"Не хватает денег на взнос и нет допуска лидера","Not enough money for the fee and no leader approval"},
+ nojoin={"Вступление — у вербовщика группировки (E рядом с NPC) или по приглашению лидера или офицера.","Join at a faction recruiter (E near the NPC) or by a leader's invitation."},
+ task={"Захват точки начинается удержанием E на её флаге (ничья точка или враг во время войны), затем удерживайте зону: +25 опыта и +10 репутации.","Hold E on a point's flag to start capturing, then hold the area: +25 XP and +10 reputation."},
+ supply_help={"Каждая удерживаемая точка раз в интервал дохода приносит очко снабжения и деньги в казну, если в группировке есть живой игрок онлайн. Оспариваемые и захватываемые точки дохода не дают. Очки тратятся на улучшения и способности.","Each held point yields supply and treasury money per income interval while a faction member is alive online. Contested points yield nothing."},
+}
+for key,row in pairs(extra) do F.Locale.ru[key]=row[1];F.Locale.en[key]=row[2] end
