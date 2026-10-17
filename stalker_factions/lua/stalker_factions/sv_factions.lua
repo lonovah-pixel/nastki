@@ -1,34 +1,78 @@
 local F=STFW
-function F.Notify(p,key,extra)
- net.Start("stfw.notice");net.WriteString(F.L(key)..(extra and (": "..extra) or ""));if IsValid(p) then net.Send(p) else net.Broadcast() end
+-- Уведомление игрока (p=nil — всем). С ядром сборки — общий тост КПК, без него — старая полоса STFW.
+function F.Toast(p,text,kind,seconds)
+ if p~=nil and not IsValid(p) then return end
+ local C=STALKER_CORE
+ if C and C.Notify then return C.Notify(p,text,kind or "info",seconds) end
+ net.Start("stfw.notice");net.WriteString(text);if p~=nil then net.Send(p) else net.Broadcast() end
 end
-function F.Authority(p,id) return IsValid(p) and (p:IsSuperAdmin() or (F.Load(p) and F.Load(p).joined and F.Load(p).faction==id and F.World.leaders[id]==p:SteamID64())) end
+function F.Notify(p,key,extra)
+ local kind=({saved="ok",joined="ok",captured="info",victory="ok",proposal="info",updated="info"})[key] or "warn"
+ F.Toast(p,F.L(key)..(extra and (": "..extra) or ""),kind)
+end
+-- Уведомить всех членов группировки в сети (кроме except).
+function F.AlertFaction(id,text,kind,except)
+ local list={}
+ for _,p in ipairs(player.GetHumans()) do
+  local d=F.Profiles[p:SteamID64()]
+  if d and d.joined and d.faction==id and p~=except then list[#list+1]=p;F.Toast(p,text,kind or "info",8) end
+ end
+ return list
+end
+function F.Authority(p,id) return IsValid(p) and (F.IsAdmin(p) or (F.Load(p) and F.Load(p).joined and F.Load(p).faction==id and F.World.leaders[id]==p:SteamID64())) end
+
+-- Состав: все вступившие профили (в том числе не в сети).
+-- Подсчёт кэшируется до следующей записи мира: членство меняется только через F.Commit (ревизия растёт).
+local counts={rev=-1}
+function F.MemberCount(id)
+ if counts.rev~=F.World.revision then
+  counts={rev=F.World.revision}
+  for _,d in pairs(F.Profiles) do if d.joined then counts[d.faction]=(counts[d.faction] or 0)+1 end end
+ end
+ return counts[id or ""] or 0
+end
+function F.IsFull(id) local cap=F.MemberCap(id);return cap>0 and F.MemberCount(id)>=cap end
+-- Действующий запрет вступления: принадлежит текущему лидеру; смена лидера снимает его.
+function F.ActiveBan(id,world)
+ world=world or F.World
+ local b=world.bans and world.bans[id or ""]
+ if type(b)=="table" and b.leader and world.leaders[id]==b.leader then return b end
+end
+
 -- Одинаковые условия для предпросмотра у NPC и окончательного решения сервера.
-function F.CanJoin(p,id,prospectiveTeam)
+-- opts.invite — вступление по приглашению лидера/офицера: без взноса и требований к репутации.
+function F.CanJoin(p,id,prospectiveTeam,opts)
+ opts=opts or {}
  local d=F.Load(p);local f=F.Factions[id]
  if not d then return false,"profile_unavailable" end
  if not f or not f.playable then return false,"invalid_faction" end
  if d.joined and d.faction==id then return false,"already_joined" end
+ local ban=F.ActiveBan(id);if ban and ban.sid==p:SteamID64() then return false,"leader_banned" end
+ if F.IsFull(id) then return false,"faction_full" end
  local remaining=math.max(0,F.Config.JoinCooldown-(os.time()-(d.joinedAt or 0)))
  if remaining>0 and (d.joined or (d.joinedAt or 0)>0) then return false,"cooldown",remaining end
- if (d.rep[id] or 0)<(f.minRep or F.Config.JoinMinRep) then return false,"low_reputation" end
+ if not opts.invite and (d.rep[id] or 0)<(f.minRep or F.Config.JoinMinRep) then return false,"low_reputation" end
  if F.Config.DarkRP.Enabled and F.Config.DarkRP.Mode=="jobs" and F.JobFaction(prospectiveTeam or p:Team())~=id then return false,"job_mismatch" end
- if F.Admission then local allowed,reason=F.Admission(p,id);return allowed,reason end
+ if not opts.invite and F.Admission then local allowed,reason=F.Admission(p,id);return allowed,reason end
  return true
 end
-function F.SetFaction(p,id,force)
+--[[ Вступление. Третий аргумент: true — принудительно (администратор), либо таблица {force, invite}.
+ Любое вступление проходит здесь и вызывает хук STFW_FactionChanged(p, id) — по нему DarkRP выдаёт профессию. ]]
+function F.SetFaction(p,id,opts)
+ if opts==true then opts={force=true} elseif type(opts)~="table" then opts={} end
  local d=F.Load(p);local f=F.Factions[id]
  if not d then return false,"profile_unavailable" end
  if not f or not f.playable then return false,"invalid_faction" end
- if not force then local ok,err=F.CanJoin(p,id);if not ok then return false,err end end
+ if not opts.force then local ok,err=F.CanJoin(p,id,nil,opts);if not ok then return false,err end end
  local fee=0
- if not force and F.Admission then local ok,err,price=F.Admission(p,id);if not ok then return false,err end;fee=price or 0 end
+ if not opts.force and not opts.invite and F.Admission then local ok,err,price=F.Admission(p,id);if not ok then return false,err end;fee=price or 0 end
  if fee>0 then p:addMoney(-fee) end
  d=table.Copy(d);local w=table.Copy(F.World)
  if d.admissions then d.admissions[id]=nil end
  if w.leaders[d.faction]==p:SteamID64() then w.leaders[d.faction]=nil end
- d.faction=id;d.joined=true;d.joinedAt=os.time()
- if not F.Commit(w,{[p:SteamID64()]=d},"membership "..p:SteamID64().." -> "..id) then if fee>0 then p:addMoney(fee) end;return false,"storage" end
+ d.faction=id;d.joined=true;d.joinedAt=os.time();d.frank=1
+ if not F.Commit(w,{[p:SteamID64()]=d},"membership "..p:SteamID64().." -> "..id..(opts.invite and " (invite)" or "")) then if fee>0 then p:addMoney(fee) end;return false,"storage" end
+ if F.Invites then F.Invites[p:SteamID64()]=nil end
  hook.Run("STFW_FactionChanged",p,id);F.Notify(p,"joined",F.Name(id));return true
 end
 function F.AddReputation(p,id,amount,reason)
@@ -55,7 +99,7 @@ function F.SetNPCReputation(ent,id,n)
  end
  ent:SetNW2Int("stfw_rep_"..id,n);return true
 end
-hook.Add("PlayerInitialSpawn","STFW.Load",function(p) timer.Simple(2,function() if IsValid(p) and F.Load(p) then F.Save();p:SetNW2String("stfw_faction",F.Load(p).faction);p:SetNW2Bool("stfw_joined",F.Load(p).joined==true);F.SendState(p) end end) end)
+hook.Add("PlayerInitialSpawn","STFW.Load",function(p) timer.Simple(2,function() if IsValid(p) and F.Load(p) then F.Save();F.PublishProfile(p,F.Load(p));F.SendState(p) end end) end)
 hook.Add("PlayerSpawn","STFW.Protection",function(p)
  p.StfwProtected=CurTime()+F.Config.SpawnProtection
  -- Отдельный модуль ищет свободное место после штатного возрождения DarkRP.
@@ -70,25 +114,38 @@ hook.Add("OnNPCKilled","STFW.Mutants",function(npc,attacker)
  if fid and IsValid(attacker) and attacker:IsPlayer() then local d=F.Load(attacker);if d and d.joined then F.AddReputation(attacker,d.faction,1,"mutant") end end
 end)
 
+-- Исключение по SteamID64: работает и для профилей не в сети (их меняет лидер из меню состава).
+function F.ExpelSID(sid,reason)
+ local old=F.Profiles[sid];if not old or not old.joined then return false,"not_member" end
+ local d=table.Copy(old);local w=table.Copy(F.World);local from=d.faction
+ if w.leaders[d.faction]==sid then w.leaders[d.faction]=nil end
+ d.joined=false;d.faction="loner";d.joinedAt=os.time();d.frank=1
+ if not F.Commit(w,{[sid]=d},"expelled "..sid..(reason and (" "..reason) or "")) then return false,"storage" end
+ local p=STALKER_CORE and STALKER_CORE.PlayerBySID and STALKER_CORE.PlayerBySID(sid)
+ if not p then for _,q in ipairs(player.GetHumans()) do if q:SteamID64()==sid then p=q end end end
+ if IsValid(p) then hook.Run("STFW_FactionLeft",p,from);F.Toast(p,"Вы больше не состоите в группировке «"..F.Name(from).."»","warn") end
+ return true
+end
 function F.Expel(p)
- local old=F.Load(p);if not old then return false end
- local d=table.Copy(old);local w=table.Copy(F.World)
- if w.leaders[d.faction]==p:SteamID64() then w.leaders[d.faction]=nil end
- d.joined=false;d.faction="loner";d.joinedAt=os.time()
- return F.Commit(w,{[p:SteamID64()]=d},"expelled "..p:SteamID64())
+ if not IsValid(p) or not F.Load(p) then return false end
+ return F.ExpelSID(p:SteamID64())
 end
 
 function F.IsLeader(p)
  local d=IsValid(p) and F.Load(p)
  return d and d.joined and F.World.leaders[d.faction]==p:SteamID64() or false
 end
+-- Роль в командовании: leader, officer (звание «Офицер» и выше), member или nil (не состоит).
+function F.Role(p)
+ local d=IsValid(p) and F.Load(p);if not d or not d.joined then return end
+ if F.World.leaders[d.faction]==p:SteamID64() then return "leader" end
+ if (d.frank or 1)>=F.OfficerRank then return "officer" end
+ return "member"
+end
+function F.CanCommand(p) local r=F.Role(p);return r=="leader" or r=="officer" end
+-- Старые действия меню лидера (допуск, отзыв, исключение) — с новыми правилами званий.
 function F.LeaderAction(p,a)
  if a.op=="approve" or a.op=="revoke" then return F.GrantAdmission(p,a.sid,a.op=="revoke") end
- if not F.IsLeader(p) or a.op~="expel" then return false,"unauthorized" end
- local d=F.Load(p);local target
- for _,other in ipairs(player.GetHumans()) do if other:SteamID64()==a.sid then target=other;break end end
- if not IsValid(target) or target==p then return false,"denied" end
- local member=F.Load(target)
- if not member or not member.joined or member.faction~=d.faction then return false,"unauthorized" end
- return F.Expel(target)
+ if a.op~="expel" or not F.KickMember then return false,"unauthorized" end
+ return F.KickMember(p,a.sid)
 end

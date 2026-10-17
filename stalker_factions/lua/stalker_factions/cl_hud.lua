@@ -2,6 +2,7 @@
 local F=STFW
 local U=STALKER_STYLE
 local hud=CreateClientConVar("stfw_hud","1",true,false)
+local abilitiesHud=CreateClientConVar("stfw_abilities_hud","1",true,false,"Полоса способностей командования: 1 — показывать, 0 — скрыть")
 local notices,radar={},{};local nearby=false
 local scale=1
 local function fonts()
@@ -37,7 +38,7 @@ timer.Create("STFW.Radar",.25,0,function()
  end
 end)
 local function menuOpen()
- return (IsValid(F.Frame) and F.Frame:IsVisible()) or (STALKER_INV and IsValid(STALKER_INV.Frame)) or (STALKER_NPC and IsValid(STALKER_NPC.Window))
+ return (IsValid(F.Frame) and F.Frame:IsVisible()) or IsValid(F.CommandFrame) or (STALKER_INV and IsValid(STALKER_INV.Frame)) or (STALKER_NPC and IsValid(STALKER_NPC.Window))
 end
 hook.Add("HUDShouldDraw","STFW.Vitals",function(name)
  if hud:GetBool() and F.State and not menuOpen() then
@@ -87,7 +88,7 @@ hook.Add("HUDPaint","STFW.HUD",function()
  if R and R.MarkExternalHUD then R.MarkExternalHUD() end
  if inv then
   U.Bar(vx+px(12),vy+px(116),px(87),px(4),(inv.hunger or 100)/100,F.C.green)
-  U.Bar(vx+px(109),vy+px(116),px(87),px(4),(inv.thirst or 100)/100,Color(100,138,145))
+  U.Bar(vx+px(109),vy+px(116),px(87),px(4),(inv.thirst or 100)/100,F.C.info)
   draw.SimpleText(string.format("%.1f kg",STALKER_INV.Weight(inv)),"STFW.HudSmall",vx+width-px(10),vy+px(108),F.C.accent,TEXT_ALIGN_RIGHT)
  end
  draw.SimpleText("F6  /  КПК ГРУППИРОВКИ","STFW.HudSmall",vx+px(12),vy+height-px(17),F.C.muted)
@@ -107,8 +108,11 @@ hook.Add("HUDPaint","STFW.HUD",function()
   local zw=px(370);local zx,zy=ScrW()/2-zw/2,px(26)
   F.Box(zx,zy,zw,px(94));draw.SimpleText(fit(zone.name,"STFW.HudTitle",zw-px(22)),"STFW.HudTitle",ScrW()/2,zy+px(9),F.C.accent,TEXT_ALIGN_CENTER)
   draw.SimpleText("☢ "..zone.radiation.." / "..F.L("anomaly").." "..zone.anomaly.." / "..F.Name(zone.owner),"STFW.HudSmall",ScrW()/2,zy+px(34),F.C.muted,TEXT_ALIGN_CENTER)
-  draw.SimpleText(F.L(F.TerritoryStatus(zone,me.faction,me.joined,state)),"STFW.HudSmall",zx+px(12),zy+px(71),F.C.text)
-  U.Bar(zx+px(12),zy+px(55),zw-px(24),px(4),zone.progress or 0,zone.contested and F.C.red or F.C.green)
+  local status=F.TerritoryStatus(zone,me.faction,me.joined,state)
+  draw.SimpleText(fit(F.L(status),"STFW.HudSmall",zw-px(24)),"STFW.HudSmall",zx+px(12),zy+px(71),status=="territory_threat" and F.C.red or F.C.text)
+  local armed=zone.armed and F.Factions[zone.armed]
+  U.Bar(zx+px(12),zy+px(55),zw-px(24),px(4),zone.progress or 0,zone.contested and F.C.red or (armed and Color(armed.color[1],armed.color[2],armed.color[3])) or F.C.green)
+  if zone.armed then draw.SimpleText("ЗАХВАТ: "..F.Name(zone.armed),"STFW.HudSmall",zx+zw-px(12),zy+px(71),F.C.red,TEXT_ALIGN_RIGHT) end
  end
  if nearby then draw.SimpleText(F.Config.Language=="ru" and "ВРАГ РЯДОМ" or "ENEMY NEARBY","STFW.Hud",rx,ry+rs+px(66),F.C.red) end
  for i=#notices,1,-1 do if CurTime()-notices[i].time>7 then table.remove(notices,i) end end
@@ -119,9 +123,35 @@ hook.Add("HUDPaint","STFW.HUD",function()
   for j=1,math.min(2,#lines) do draw.SimpleText(lines[j],"STFW.Hud",nx+px(10),ny+px(24+(j-1)*16),F.C.text) end
  end
 end)
+-- Полоса способностей командования (лидер и офицеры): перезарядка по снимку сервера.
+hook.Add("HUDPaint","STFW.Abilities",function()
+ if not hud:GetBool() or not abilitiesHud:GetBool() or menuOpen() then return end
+ local p=LocalPlayer();if not IsValid(p) or not p:Alive() then return end
+ local warcry=p:GetNW2Float("stfw_warcry",0)-CurTime()
+ if warcry>0 then draw.SimpleText(string.format("БОЕВОЙ КЛИЧ: −%d%% урона · %d с",math.floor((F.Abilities.warcry.reduction or .2)*100),math.ceil(warcry)),"STFW.Hud",ScrW()/2,ScrH()-px(150),F.C.green,TEXT_ALIGN_CENTER) end
+ local cmd=F.State and F.State.command;if not cmd then return end
+ local list=F.AbilityOrder;local size,gap=px(64),px(6)
+ local total=#list*size+(#list-1)*gap;local x0,y=ScrW()/2-total/2,ScrH()-size-px(70)
+ local elapsed=CurTime()-(F.StateAt or CurTime())
+ for i,id in ipairs(list) do
+  local a=F.Abilities[id];local x=x0+(i-1)*(size+gap)
+  local allowed=cmd.role=="leader" or a.minRank~="leader"
+  local left=math.max(0,((cmd.cooldowns or {})[id] or 0)-elapsed)
+  local ready=allowed and left<=0 and (cmd.credits or 0)>=a.cost
+  F.Box(x,y,size,size,ready)
+  draw.SimpleText(fit(a.name,"STFW.HudSmall",size-px(6)),"STFW.HudSmall",x+size/2,y+px(6),allowed and F.C.text or F.C.muted,TEXT_ALIGN_CENTER)
+  if left>0 then
+   U.Bar(x+px(4),y+size-px(10),size-px(8),px(4),1-left/math.max(1,a.cooldown),F.C.warn)
+   draw.SimpleText(left>=60 and (math.ceil(left/60).." мин") or (math.ceil(left).." с"),"STFW.Hud",x+size/2,y+size/2,F.C.warn,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
+  else
+   draw.SimpleText(tostring(a.cost),"STFW.Hud",x+size/2,y+size/2,ready and F.C.accent or F.C.muted,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
+  end
+ end
+ draw.SimpleText("Снабжение: "..(cmd.credits or 0).."  ·  stfw_ability <id>","STFW.HudSmall",ScrW()/2,y-px(16),F.C.muted,TEXT_ALIGN_CENTER)
+end)
 -- В редакторе видны границы реальных серверных зон, без изменения правил захвата.
 hook.Add("PostDrawTranslucentRenderables","STFW.ZonePreview",function()
- if (not IsValid(F.Frame) and not F.Placement) or (not F.Placement and F.Tab~="admin") or not LocalPlayer():IsSuperAdmin() or not F.State then return end
+ if (not IsValid(F.Frame) and not F.Placement) or (not F.Placement and F.Tab~="admin") or not F.State or not F.State.admin then return end
  for _,p in pairs(F.State.points) do
   local pos=Vector(p.pos.x,p.pos.y,p.pos.z)
   for i=0,31 do local a,b=i*math.pi/16,(i+1)*math.pi/16

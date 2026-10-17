@@ -15,8 +15,12 @@ end
 function F.TerritoryStatus(point,faction,joined,world)
  if point.contested then return "territory_contested" end
  if not joined then return "territory_join" end
- if point.owner==faction then return point.base and "territory_base" or "territory_owned" end
+ if point.owner==faction then
+  if point.armed and point.armed~=faction then return "territory_threat" end
+  return point.base and "territory_base" or "territory_owned"
+ end
  if point.owner~="" and F.Relation(faction,point.owner,world)~="war" then return "territory_war" end
+ if point.armed==faction then return (point.progress or 0)>0 and "territory_capturing" or "territory_armed" end
  if point.attacker and (point.progress or 0)>0 then return "territory_capturing" end
- return "territory_enter"
+ return "territory_need_action"
 end

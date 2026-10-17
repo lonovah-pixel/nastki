@@ -6,7 +6,7 @@ function F.Diplomacy(p,a)
  local w=table.Copy(F.World);local key=F.Pair(from,to);local r=w.relations[key] or {points=0,revision=0,war=false};w.relations[key]=r
  if a.op=="propose" then
   if not F.Int(a.points,-100,100) or type(a.peace)~="boolean" then return false,"denied" end
-  if not w.leaders[to] and not p:IsSuperAdmin() then return false,"offline" end
+  if not w.leaders[to] and not F.IsAdmin(p) then return false,"offline" end
   w.proposals[key]={from=from,to=to,points=a.points,peace=a.peace,token=tostring(os.time()).."_"..math.random(1,2147483646),revision=r.revision,expires=os.time()+F.Config.ProposalTTL,author=p:SteamID64()}
  elseif a.op=="accept" or a.op=="reject" then
   local proposal=w.proposals[key]
@@ -19,10 +19,10 @@ function F.Diplomacy(p,a)
  elseif a.op=="war" then
   if r.war or (r.truce or 0)>os.time() then return false,"denied" end
   r.war=true;r.points=math.min(-50,r.points);r.scores={[from]=0,[to]=0};r.started=os.time();r.revision=r.revision+1;w.proposals[key]=nil
- elseif a.op=="adjust" and p:IsSuperAdmin() then
+ elseif a.op=="adjust" and F.IsAdmin(p) then
   if not F.Int(a.points,-100,100) then return false,"denied" end
   r.points=math.Clamp(r.points+a.points,-100,100);r.revision=r.revision+1;w.proposals[key]=nil
- elseif a.op=="stop" and p:IsSuperAdmin() then r.war=false;r.scores=nil;r.truce=os.time()+F.Config.TruceSeconds;r.revision=r.revision+1;w.proposals[key]=nil
+ elseif a.op=="stop" and F.IsAdmin(p) then r.war=false;r.scores=nil;r.truce=os.time()+F.Config.TruceSeconds;r.revision=r.revision+1;w.proposals[key]=nil
  else return false,"denied" end
  if not F.Commit(w,{},"diplomacy "..p:SteamID64().." "..a.op.." "..key) then return false,"storage" end
  F.Notify(nil,a.op=="propose" and "proposal" or "updated",F.Name(from).." / "..F.Name(to));return true
@@ -45,26 +45,29 @@ function F.Eligible(p,point)
  if dx*dx+dy*dy<=point.radius^2 and math.abs(pos.z-point.pos.z)<=point.height then return d.faction end
 end
 local last=CurTime();local control=0
- timer.Create("STFW.Capture",1,0,function()
+timer.Create("STFW.Capture",1,0,function()
  if not F.DatabaseReady then return end
  local now=CurTime();local dt=math.Clamp(now-last,0,2);last=now;control=control+dt
- local w=table.Copy(F.World);local profiles={};local changed=false;local messages={}
+ local w=table.Copy(F.World);local profiles={};local changed=false;local captured={};local resets={};local payouts
  for id,point in pairs(w.points) do
   local counts,participants={},{}
   for _,p in ipairs(player.GetHumans()) do local f=F.Eligible(p,point);if f then counts[f]=(counts[f] or 0)+1;participants[#participants+1]=p end end
-  local oldProgress,oldAttacker,oldContest=point.progress,point.attacker,point.contested
+  local oldProgress,oldAttacker,oldContest,oldArmed=point.progress,point.attacker,point.contested,point.armed
+  local lost,why=F.ArmWindowStep(id,point,counts,dt,w)
+  if lost then resets[#resets+1]={point=point,faction=lost,why=why} end
   local owner,old=F.CaptureStep(point,counts,dt,w)
-  if oldProgress~=point.progress or oldAttacker~=point.attacker or oldContest~=point.contested then changed=true end
+  if oldProgress~=point.progress or oldAttacker~=point.attacker or oldContest~=point.contested or oldArmed~=point.armed then changed=true end
   if owner then
-   changed=true;F.Score(w,owner,old,F.Config.CaptureScore);messages[#messages+1]=point.name.." / "..F.Name(owner)
+   changed=true;F.Score(w,owner,old,F.Config.CaptureScore)
+   local row={point=point,owner=owner,old=old,players={}};captured[#captured+1]=row
    for _,p in ipairs(participants) do local sid=p:SteamID64();local d=profiles[sid] or table.Copy(F.Load(p));if d.faction==owner then
-    d.xp=d.xp+25;d.captures=d.captures+1;d.rep[owner]=math.Clamp((d.rep[owner] or 0)+10,-2000,2000);profiles[sid]=d
+    d.xp=d.xp+25;d.captures=d.captures+1;d.rep[owner]=math.Clamp((d.rep[owner] or 0)+10,-2000,2000);profiles[sid]=d;row.players[#row.players+1]=p
    end end
   end
  end
- if control>=60 then
+ if control>=math.max(1,F.Config.IncomeInterval) then
   control=0
-  if F.AccrueSupply and F.AccrueSupply(w) then changed=true end
+  local accrued,list=F.AccrueIncome(w);if accrued then changed=true end;payouts=list
   for key,r in pairs(w.relations) do if r.war then
    local a,b=key:match("^([^:]+):([^:]+)$");local online={}
    for _,p in ipairs(player.GetHumans()) do local d=F.Load(p);if d and d.joined then online[d.faction]=true end end
@@ -73,8 +76,21 @@ local last=CurTime();local control=0
  end
  for key,proposal in pairs(w.proposals) do if proposal.expires<os.time() then w.proposals[key]=nil;changed=true end end
  if changed and F.Commit(w,profiles) then
-  for _,msg in ipairs(messages) do F.Notify(nil,"captured",msg) end
+  local C=STALKER_CORE
+  for _,row in ipairs(captured) do
+   -- Лента КПК сама показывает всплывающее сообщение; без ядра — прежнее уведомление STFW.
+   if C and C.News then C.News("«"..F.Name(row.owner).."» захватили точку «"..row.point.name.."»"..(row.old~="" and (" у «"..F.Name(row.old).."»") or ""),"capture")
+   else F.Notify(nil,"captured",row.point.name.." / "..F.Name(row.owner)) end
+   for _,p in ipairs(row.players) do if C and C.AddStat then C.AddStat(p,"captures",1) end end
+   hook.Run("STFW_PointCaptured",row.point.id,row.owner,row.old,row.players)
+  end
+  for _,row in ipairs(resets) do
+   F.AlertFaction(row.faction,"Захват точки «"..row.point.name.."» сорван: "..(row.why=="peace" and "война окончена" or "атакующие покинули точку дольше "..math.floor(F.Config.CaptureWindow).." с"),"warn")
+   if row.point.owner~="" then F.AlertFaction(row.point.owner,"Захват точки «"..row.point.name.."» прекращён","ok") end
+  end
+  F.PayIncome(payouts)
  end
+ if F.SyncFlags then F.SyncFlags() end
 end)
 local kills={}
 hook.Add("PlayerDeath","STFW.Kill",function(victim,_,attacker)

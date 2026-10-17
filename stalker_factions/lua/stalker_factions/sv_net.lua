@@ -4,22 +4,57 @@ local function rate(p)
  local now=CurTime();p.StfwBucket=p.StfwBucket or {n=6,t=now};local b=p.StfwBucket;b.n=math.min(6,b.n+(now-b.t)*2);b.t=now
  if b.n<1 then return false end;b.n=b.n-1;return true
 end
-function F.SendState(p,reply)
- local d=F.Load(p);if not d then return end
- local top={};for sid,v in pairs(F.Profiles) do if v.faction==d.faction and v.joined then top[#top+1]={name=v.name or sid,xp=v.xp,captures=v.captures} end end
- table.sort(top,function(a,b) return a.xp>b.xp end);while #top>10 do table.remove(top) end
- local members={};local traders={};local candidates={}
- if F.IsLeader(p) then for _,other in ipairs(player.GetHumans()) do local profile=F.Load(other);if profile and (not profile.joined or profile.faction~=d.faction) then candidates[#candidates+1]={sid=other:SteamID64(),name=other:Nick()} end end end
- if p:IsSuperAdmin() or F.IsLeader(p) then
-  for _,member in ipairs(player.GetHumans()) do local profile=F.Load(member)
-   if profile and (p:IsSuperAdmin() or profile.joined and profile.faction==d.faction) then
-    members[#members+1]={sid=member:SteamID64(),name=member:Nick(),faction=profile.faction,joined=profile.joined}
-   end
+--[[ Данные меню командования (лидеру и офицерам): состав с профилями не в сети, казна, доход, способности, запрет. ]]
+function F.CommandState(p,d,role)
+ local id=d.faction;local prog=F.ProgRead(id);local leaderSid=F.World.leaders[id]
+ local roster,candidates,approvals,onlineCount={},{},{},0
+ for sid,v in pairs(F.Profiles) do
+  if v.joined and v.faction==id then
+   local q=F.OnlineBySID and F.OnlineBySID(sid)
+   if q then onlineCount=onlineCount+1 end
+   roster[#roster+1]={sid=sid,name=v.name or sid,frank=v.frank or 1,online=q~=nil,leader=leaderSid==sid,xp=v.xp or 0}
+  elseif role=="leader" and v.admissions and type(v.admissions[id])=="table" and v.admissions[id].leader==leaderSid and (v.admissions[id].expires or 0)>os.time() then
+   approvals[#approvals+1]={sid=sid,name=v.name or sid,expires=v.admissions[id].expires-os.time()}
   end
  end
- if p:IsSuperAdmin() then for _,ent in ipairs(ents.FindByClass("stalker_npc_trader")) do traders[#traders+1]={entity=ent:EntIndex(),profile=ent:GetTraderID()} end end
- local state={candidates=candidates,progression=F.World.progression or {},leader=F.IsLeader(p),members=members,traders=traders,reply=reply,revision=F.World.controlRevision or 0,points=F.World.points,relations=F.World.relations,leaders=F.World.leaders,
- proposals=F.World.proposals,history=F.World.history,me=d,top=top,admin=p:IsSuperAdmin(),serverTime=os.time()}
+ table.sort(roster,function(a,b) if a.leader~=b.leader then return a.leader end;if a.frank~=b.frank then return a.frank>b.frank end;return tostring(a.name)<tostring(b.name) end)
+ local ban=F.ActiveBan(id)
+ for _,q in ipairs(player.GetHumans()) do
+  local v=F.Load(q)
+  if v and q~=p and not (v.joined and v.faction==id) then candidates[#candidates+1]={sid=q:SteamID64(),name=q:Nick(),faction=v.joined and v.faction or nil,banned=ban~=nil and ban.sid==q:SteamID64() or nil} end
+ end
+ table.sort(candidates,function(a,b) return tostring(a.name)<tostring(b.name) end)
+ local money,supply,held=F.ExpectedIncome(id)
+ local cooldowns={};for ab in pairs(F.Abilities) do cooldowns[ab]=F.CooldownLeft(id,ab) end
+ local out={role=role,leader=leaderSid,roster=roster,candidates=candidates,count=#roster,cap=F.MemberCap(id),online=onlineCount,
+  credits=prog.credits,income={money=money,supply=supply,held=held,interval=F.Config.IncomeInterval,last=prog.lastIncome,lastAt=prog.lastIncomeAt and (os.time()-prog.lastIncomeAt) or nil},
+  cooldowns=cooldowns,buffs={mobilize=F.BuffLeft(id,"mobilize")},ban=ban and {sid=ban.sid,name=ban.name,t=ban.t} or nil,banCost=F.Config.LeaderBanCost}
+ if role=="leader" then out.treasury=prog.treasury;out.ledger=prog.ledger;out.approvals=approvals end
+ if role=="officer" then out.treasury=prog.treasury end
+ return out
+end
+function F.SendState(p,reply)
+ local d=F.Load(p);if not d then return end
+ local admin=F.IsAdmin(p);local role=F.Role(p)
+ local top={};for sid,v in pairs(F.Profiles) do if v.faction==d.faction and v.joined then top[#top+1]={name=v.name or sid,xp=v.xp,captures=v.captures} end end
+ table.sort(top,function(a,b) return a.xp>b.xp end);while #top>10 do table.remove(top) end
+ local members={};local traders={};local summary
+ if admin then
+  for _,member in ipairs(player.GetHumans()) do local profile=F.Load(member)
+   if profile then members[#members+1]={sid=member:SteamID64(),name=member:Nick(),faction=profile.faction,joined=profile.joined} end
+  end
+  for _,ent in ipairs(ents.FindByClass("stalker_npc_trader")) do traders[#traders+1]={entity=ent:EntIndex(),profile=ent:GetTraderID()} end
+  summary={members={},caps={}}
+  for id,f in pairs(F.Factions) do if f.playable then summary.members[id]=F.MemberCount(id);summary.caps[id]=F.MemberCap(id) end end
+ end
+ -- Развитие видно только своей группировке; казна — лидеру и офицерам.
+ local prog=F.ProgRead(d.faction);local mine={credits=prog.credits,levels=prog.levels}
+ if role=="leader" or role=="officer" then mine.treasury=prog.treasury end
+ local me=table.Copy(d);me.frank=d.frank or 1;me.role=role
+ local state={progression={[d.faction]=mine},leader=role=="leader",role=role,members=members,traders=traders,reply=reply,revision=F.World.controlRevision or 0,points=F.World.points,relations=F.World.relations,leaders=F.World.leaders,
+ proposals=F.World.proposals,history=F.World.history,me=me,top=top,admin=admin,summary=summary,serverTime=os.time(),
+ count=d.joined and F.MemberCount(d.faction) or nil,cap=d.joined and F.MemberCap(d.faction) or nil,
+ command=(role=="leader" or role=="officer") and F.CommandState(p,d,role) or nil}
  local raw=util.TableToJSON(state);local data=raw and util.Compress(raw);if not data or #data>60000 then return end
  net.Start("stfw.state");net.WriteUInt(#data,16);net.WriteData(data,#data);net.Send(p)
 end
@@ -28,7 +63,7 @@ local function trace(p)
  return tr.HitPos+tr.HitNormal*4
 end
 function F.Editor(p,a)
- if not p:IsSuperAdmin() then return false,"unauthorized" end
+ if not F.IsAdmin(p) then return false,"unauthorized" end
  local w=table.Copy(F.World)
  if a.op=="member" or a.op=="expel" or a.op=="rep" then
   local target;for _,v in ipairs(player.GetHumans()) do if v:SteamID64()==a.sid then target=v end end
@@ -64,25 +99,27 @@ function F.Editor(p,a)
    point=fields;point.id=id;point.pos={x=pos.x,y=pos.y,z=pos.z};point.owner=a.owner;point.progress=0;w.points[id]=point;a.createdID=id
   elseif not point then return false,"denied"
   elseif a.op=="delete" then w.points[a.id]=nil
-  elseif a.op=="move" then local pos=trace(p);if not pos then return false,"denied" end;point.pos={x=pos.x,y=pos.y,z=pos.z};point.progress=0;point.attacker=nil
+  elseif a.op=="move" then local pos=trace(p);if not pos then return false,"denied" end;point.pos={x=pos.x,y=pos.y,z=pos.z};point.progress=0;point.attacker=nil;point.armed=nil
   elseif a.op=="capture" then
    if a.faction~="" and (not F.Factions[a.faction] or not F.Factions[a.faction].playable) then return false,"denied" end
-   point.owner=a.faction;point.progress=0;point.attacker=nil
+   point.owner=a.faction;point.progress=0;point.attacker=nil;point.armed=nil
   elseif a.op=="edit" then
    local fields,err=F.PointFields(a);if not fields then return false,err end
    if a.owner~=nil then
     if a.owner~="" and (not F.Factions[a.owner] or not F.Factions[a.owner].playable) then return false,"point_owner" end
-    if point.owner~=a.owner then point.owner=a.owner;point.progress=0;point.attacker=nil end
+    if point.owner~=a.owner then point.owner=a.owner;point.progress=0;point.attacker=nil;point.armed=nil end
    end
    for key,value in pairs(fields) do point[key]=value end
   else return false,"denied" end
  end
  if not F.Commit(w,{},"editor "..p:SteamID64().." "..a.op) then return false,"storage" end
  if a.op=="recruiter" or a.op=="remove_recruiter" then F.RestoreRecruiters() end
+ -- Флаги территорий восстанавливаются после любой правки точек, как вербовщики.
+ if F.SyncFlags then F.SyncFlags() end
  return true,nil,a.createdID or a.id
 end
 function F.TraderEditor(p,a)
- if not p:IsSuperAdmin() then return false,"unauthorized" end
+ if not F.IsAdmin(p) then return false,"unauthorized" end
  local N=STALKER_NPC;if not N or not N.SpawnTrader or not N.SaveNPCs then return false,"denied" end
  if a.op=="spawn" then
   if type(a.profile)~="string" or not N.Config.Traders[a.profile] or #ents.FindByClass("stalker_npc_trader")>=64 then return false,"denied" end
@@ -113,10 +150,21 @@ net.Receive("stfw.action",function(len,p)
  if F.DebugLog then F.DebugLog(p:SteamID64().." "..tostring(a.kind).."/"..tostring(a.op).." = "..tostring(ok).." "..tostring(err)) end
  F.Notify(p,ok and "saved" or (err or "denied"));F.SendState(p,{id=a.requestID,ok=ok==true,error=err,pointID=pointID})
 end)
+-- Окно вербовщика: всё, что игроку нужно знать до оплаты взноса (состав, взнос, репутация, лидер).
+function F.RecruitInfo(p,id)
+ local d=F.Load(p);local f=F.Factions[id] or {}
+ local ok,reason,seconds=F.CanJoin(p,id)
+ local leaderSid=F.World.leaders[id];local leader=leaderSid and F.OnlineBySID and F.OnlineBySID(leaderSid)
+ local money=p.getDarkRPVar and p:getDarkRPVar("money")
+ return {faction=id,ok=ok==true,reason=reason or "",seconds=seconds or 0,members=F.MemberCount(id),cap=F.MemberCap(id),
+  fee=F.JoinFee(id),admitted=F.HasAdmission(d,id),rep=d and d.rep[id] or 0,minRep=f.minRep or F.Config.JoinMinRep,
+  leaderName=leaderSid and ((F.Profiles[leaderSid] or {}).name or leaderSid) or nil,leaderOnline=IsValid(leader),
+  money=type(money)=="number" and money or nil,current=d and d.joined and d.faction or nil}
+end
 function F.SendRecruit(p,ent)
- local ok,reason,seconds=F.CanJoin(p,ent:GetFactionID())
+ local info=F.RecruitInfo(p,ent:GetFactionID());info.ent=ent:EntIndex()
  p.StfwRecruit={ent=ent,expires=CurTime()+60}
- net.Start("stfw.recruit");net.WriteEntity(ent);net.WriteBool(ok==true);net.WriteString(reason or "");net.WriteUInt(math.min(4294967295,seconds or 0),32);net.Send(p)
+ F.SendJSON("stfw.recruit",p,info)
 end
 net.Receive("stfw.recruit",function(len,p)
  if len~=17 or not rate(p) then return end
@@ -124,17 +172,21 @@ net.Receive("stfw.recruit",function(len,p)
  if not accept or not IsValid(ent) or ent:GetClass()~="stalker_recruiter" or not p:Alive() or p:GetPos():DistToSqr(ent:GetPos())>F.Config.RecruitDistance^2 then return end
  local tr=util.TraceLine({start=p:EyePos(),endpos=ent:WorldSpaceCenter(),filter=p});if tr.Hit and tr.Entity~=ent then return end
  if not p.StfwRecruit or p.StfwRecruit.ent~=ent or p.StfwRecruit.expires<CurTime() then return end;p.StfwRecruit=nil
- local ok,err=F.SetFaction(p,ent:GetFactionID());if not ok then F.Notify(p,err);if F.SendRecruit then F.SendRecruit(p,ent) end end;F.SendState(p)
+ local ok,err=F.SetFaction(p,ent:GetFactionID());if not ok then F.Notify(p,err or "denied");if F.SendRecruit then F.SendRecruit(p,ent) end end;F.SendState(p)
 end)
 timer.Create("STFW.Sync",3,0,function() for _,p in ipairs(player.GetHumans()) do F.SendState(p) end end)
 -- Чат-команды используют те же проверки, что редактор и переговоры.
 hook.Add("PlayerSay","STFW.Chat",function(p,text)
  local a=string.Explode(" ",text);local cmd=string.lower(a[1] or "")
  if cmd=="!leader" then p:ConCommand("stfw_leader");return "" end
- if cmd=="!fadmin" then if p:IsSuperAdmin() then p:ConCommand("stfw_admin") end;return "" end
+ if cmd=="!fadmin" then if F.IsAdmin(p) then p:ConCommand("stfw_admin") end;return "" end
+ if cmd=="!ability" then
+  local ok,err,info=F.UseAbility(p,a[2]);F.Toast(p,ok and info or F.L(err or "denied"),ok and "ok" or "warn");if ok then F.SendState(p) end;return ""
+ end
+ if cmd=="!invite" then if F.InviteCommand then F.InviteCommand(p,a[2]) end;return "" end
  if cmd=="!faction" or cmd=="!factioninfo" then p:ConCommand("stfw_menu");return "" end
  if not ({["!kickfaction"]=true,["!setfaction"]=true,["!rep"]=true,["!war"]=true,["!capture"]=true})[cmd] then return end
- if not p:IsSuperAdmin() then F.Notify(p,"unauthorized");return "" end
+ if not F.IsAdmin(p) then F.Notify(p,"unauthorized");return "" end
  local ok,err
  if cmd=="!war" then ok,err=F.Diplomacy(p,{from=a[2],to=a[3],op=a[4]=="stop" and "stop" or "war"})
  elseif cmd=="!capture" then ok,err=F.Editor(p,{op="capture",id=a[2],faction=a[3] or ""})
