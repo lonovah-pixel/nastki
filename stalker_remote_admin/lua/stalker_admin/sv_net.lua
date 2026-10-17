@@ -35,10 +35,10 @@ function A.Execute(p,a)
   local sid=IsValid(target) and target:SteamID64() or a.sid or (c.scope=="self" and A.Actor(p) or "SERVER")
   local name=IsValid(target) and target:Nick() or sid
   if not A.Audit(p,a.command,sid,util.TableToJSON(a),"attempt") then results[#results+1]={name=name,ok=false,message="Журнал недоступен; действие отменено"};return end
-  local called,success,err=pcall(A.Handlers[a.command],p,target,a)
+  local called,success,err,note=pcall(A.Handlers[a.command],p,target,a)
   if not called then ErrorNoHalt("[STA] "..tostring(success).."\n");success=false;err="Ошибка обработчика; проверьте журнал сервера" end
-  A.Audit(p,a.command,sid,err or "",success==true and "success" or "failed")
-  results[#results+1]={name=name,ok=success==true,message=success==true and "Выполнено" or (err or "Действие отклонено")}
+  A.Audit(p,a.command,sid,err or note or "",success==true and "success" or "failed")
+  results[#results+1]={name=name,sid=IsValid(target) and target:SteamID64() or nil,ok=success==true,message=success==true and (type(note)=="string" and note or "Выполнено") or (type(err)=="string" and err or "Действие отклонено")}
  end
  if c.scope=="players" then for _,target in ipairs(targets) do run(target) end else run(nil) end
  local success=true;for _,r in ipairs(results) do if not r.ok then success=false end end
@@ -60,20 +60,34 @@ function A.Confirm(p,token)
  return A.Execute(p,pending.action)
 end
 function A.Snapshot(p)
+ local ulib=A.UsesULib()
  local rows={};for _,t in ipairs(player.GetHumans()) do
   A.RememberRank(t)
   local faction=STFW and STFW.Load and STFW.Load(t)
-  rows[#rows+1]={sid=t:SteamID64(),name=t:Nick(),role=A.Role(t),rank=A.Rank(t),health=t:Health(),armor=t:Armor(),alive=t:Alive(),ping=t:Ping(),team=team.GetName(t:Team()),faction=faction and faction.faction or "—",frozen=t.StaFrozen==true,god=t.StaGod~=nil,dose=t:GetNW2Float("stalker_dose",0)}
+  rows[#rows+1]={sid=t:SteamID64(),name=t:Nick(),role=A.Role(t),rank=A.Rank(t),group=t:GetUserGroup(),health=t:Health(),armor=t:Armor(),alive=t:Alive(),ping=t:Ping(),team=team.GetName(t:Team()),faction=faction and faction.faction or "—",frozen=t.StaFrozen==true,god=t.StaGod~=nil,dose=t:GetNW2Float("stalker_dose",0)}
  end
  local permissions={};for id,c in pairs(A.Commands) do permissions[id]=A.Has(p,c.permission) end
+ local tabs={};for _,id in ipairs(A.TabPermissions) do tabs[id]=A.Has(p,id) end
  local weapons={};for id in pairs(A.Config.Weapons) do weapons[#weapons+1]={id=id,name=id} end;table.sort(weapons,function(a,b) return a.id<b.id end)
- local items={};if STALKER_INV then for id,item in pairs(STALKER_INV.Items) do items[#items+1]={id=id,name=item.name} end end
- local factions={};if STFW then for id,f in pairs(STFW.Factions) do if f.playable then factions[#factions+1]={id=id,name=STFW.Name(id)} end end end
+ local items={};if STALKER_INV and STALKER_INV.Items then for id,item in pairs(STALKER_INV.Items) do items[#items+1]={id=id,name=item.name or id} end end
+ table.sort(items,function(a,b) return a.name<b.name end)
+ local factions={};if STFW and STFW.Factions then for id,f in pairs(STFW.Factions) do if f.playable then factions[#factions+1]={id=id,name=STFW.Name and STFW.Name(id) or id} end end end
  local maps={};for _,path in ipairs(file.Find("maps/*.bsp","GAME") or {}) do local id=path:sub(1,-5);if not next(A.Config.Maps) or A.Config.Maps[id] then maps[#maps+1]={id=id,name=id} end end
- local roles={};for id,r in pairs(A.Config.Roles) do if r.rank<A.Rank(p) then roles[#roles+1]={id=id,name=r.label} end end
- A.Reply(p,{kind="state",players=rows,permissions=permissions,role=A.Role(p),map=game.GetMap(),max=game.MaxPlayers(),catalog={weapons=weapons,items=items,factions=factions,maps=maps,roles=roles},integrations={inventory=STALKER_INV~=nil,factions=STFW~=nil,radiation=STALKER_RAD~=nil,emissions=ST_EMISSION~=nil,darkrp=DarkRP~=nil},canLogs=A.Has(p,"logs"),canBans=A.Has(p,"bans")})
+ local roles={};for id,r in pairs(A.Config.Roles) do if r.rank<A.Rank(p) then roles[#roles+1]={id=id,name=r.label..(ulib and (" — ULX: "..tostring(A.RoleGroup(id))) or ""),rank=r.rank} end end
+ table.sort(roles,function(a,b) return a.rank<b.rank end)
+ local events=A.EventList()
+ local Z=STALKER_ZONE
+ A.Reply(p,{kind="state",players=rows,permissions=permissions,tabs=tabs,role=A.Role(p),group=IsValid(p) and p:GetUserGroup() or "",map=game.GetMap(),max=game.MaxPlayers(),
+  catalog={weapons=weapons,items=items,factions=factions,maps=maps,roles=roles,events=events},
+  limits={moderator=A.Config.ModeratorBanMinutes,admin=A.Config.AdminBanMinutes,max=A.Config.MaxBanMinutes,targets=A.Config.MaxTargets},
+  integrations={inventory=STALKER_INV~=nil,factions=STFW~=nil,radiation=STALKER_RAD~=nil,emissions=ST_EMISSION~=nil,darkrp=DarkRP~=nil,
+   zone=type(Z)=="table" and Z.RegenerateAll~=nil,restock=type(Z)=="table" and Z.RestockAll~=nil and STALKER_NPC~=nil,events=#events>0,ulib=ulib,ulx=A.UsesULX(),ulibBans=A.UsesULibBans()},
+  canLogs=A.Has(p,"logs"),canBans=A.Has(p,"bans")})
 end
+-- Частота запросов: общий ограничитель ядра; без ядра — собственное ведро токенов.
 local function allowed(p)
+ local C=STALKER_CORE
+ if C and C.Rate then return C.Rate(p,"admin.request",2,8) end
  local now=CurTime();p.StaBucket=p.StaBucket or {t=now,n=8};local b=p.StaBucket
  b.n=math.min(8,b.n+(now-b.t)*2);b.t=now
  if b.n<1 then return false end;b.n=b.n-1;return true
