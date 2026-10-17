@@ -29,14 +29,14 @@ function S.RefreshStashEntities(p)
   local stash=stashes[id]
   if not IsValid(ent) or not stash or stash.map~=game.GetMap() then
    if IsValid(ent) then ent:Remove() end;list[id]=nil
-  else ent:SetItemCount(table.Count(stash.items)) end
+  else ent:SetItemCount(table.Count(stash.items));ent:SetSlots(S.StashSlotsOf(stash)) end
  end
  for id,stash in pairs(stashes) do
   if stash.map==game.GetMap() and not IsValid(list[id]) then
    local ent=ents.Create("stalker_stash")
    if IsValid(ent) then
     ent:SetPos(stashPos(stash));ent:SetStashOwner(p);ent:SetStashID(id);ent:Spawn()
-    ent:SetItemCount(table.Count(stash.items));S.StashTransmit(ent);list[id]=ent
+    ent:SetItemCount(table.Count(stash.items));ent:SetSlots(S.StashSlotsOf(stash));S.StashTransmit(ent);list[id]=ent
    end
   end
  end
@@ -50,7 +50,7 @@ function S.StashCommit(p,inv,message)
  p:SetNW2Float("stalker_inv_weight",S.Weight(inv));S.RefreshStashEntities(p);S.Sync(p,message);return true
 end
 -- Перенос source[index] -> dest[target]. target=0: дозаполнить стаки, затем первая свободная ячейка.
--- Занятая ячейка с другим предметом — обмен местами.
+-- Занятая ячейка с другим предметом — обмен местами. Используется и для чужих тайников (sv_intel.lua).
 local function transfer(source,index,dest,target,limit)
  local item=source[index];if not item then return false,"Ячейка пуста" end
  local d=S.Items[item.id];if not d then return false end
@@ -76,6 +76,7 @@ local function transfer(source,index,dest,target,limit)
  end
  dest[target],source[index]=item,other;return true
 end
+S.StashTransfer=transfer
 local function slot(n,limit,auto) return (auto and n==0) or S.IsInt(n,1,limit) end
 function S.StashAction(p,op,id,index,target,revision)
  local inv=p.StalkerInventory
@@ -83,8 +84,9 @@ function S.StashAction(p,op,id,index,target,revision)
  if revision~=inv.revision then return false,"Состояние обновилось. Повторите действие." end
  if S.IsUnconscious(p) then return false,"Вы без сознания" end
  if hook.Run("STALKER_INV_CanStash",p,op,id)==false then return false,"Действие запрещено" end
+ local removed
  S.CaptureEquipment(p);inv=table.Copy(inv);inv.stashes=inv.stashes or {}
- local grid,limit=40,S.Config.StashSlots
+ local grid,limit=40,S.Config.LegacyStashSlots
  local message
  if op=="create" then
   if table.Count(inv.stashes)>=S.Config.MaxStashes then return false,"Можно иметь не больше "..S.Config.MaxStashes.." тайников" end
@@ -96,16 +98,21 @@ function S.StashAction(p,op,id,index,target,revision)
    if other.map==game.GetMap() and stashPos(other):DistToSqr(tr.HitPos)<48^2 then return false,"Слишком близко к другому тайнику" end
   end
   local pos=tr.HitPos
-  inv.stashes[S.UID()]={map=game.GetMap(),pos={x=pos.x,y=pos.y,z=pos.z},items={}}
-  message="Тайник создан"
+  -- Вместимость фиксируется при создании: смена настройки не трогает уже заполненные тайники.
+  local slots=math.Clamp(math.floor(tonumber(S.Config.StashSlots) or 12),1,S.StashMaxSlots)
+  inv.stashes[S.UID()]={map=game.GetMap(),pos={x=pos.x,y=pos.y,z=pos.z},items={},slots=slots}
+  message="Тайник создан: "..slots.." ячеек"
  else
   local stash=inv.stashes[id]
   if not stash then return false,"Тайник не найден" end
   if not S.StashReachable(p,stash) then return false,"Тайник вне досягаемости: подойдите ближе" end
+  limit=S.StashSlotsOf(stash)
   local ok,err=true
   if op=="delete" then
    if next(stash.items) then return false,"Сначала освободите тайник" end
    inv.stashes[id]=nil;message="Тайник удалён"
+   -- Наводки на удалённый тайник снимаются после сохранения (см. ниже).
+   removed=id
   elseif op=="put" then
    if not slot(index,grid) or not slot(target,limit,true) then return false end
    ok,err=transfer(inv.grid,index,stash.items,target,limit)
@@ -123,7 +130,9 @@ function S.StashAction(p,op,id,index,target,revision)
   else return false end
   if not ok then return false,err end
  end
- return S.StashCommit(p,inv,message)
+ local ok,err=S.StashCommit(p,inv,message)
+ if ok and removed and S.DropStashIntel then S.DropStashIntel(S.InventorySID(p),removed,"Владелец уничтожил тайник — наводка снята") end
+ return ok,err
 end
 net.Receive("stalker_stash.action",function(len,p)
  if len<55 or len>1000 or (p.StashNext or 0)>CurTime() then return end
@@ -134,10 +143,11 @@ net.Receive("stalker_stash.action",function(len,p)
  local ok,err=S.StashAction(p,op,id,index,target,revision)
  if not ok then S.Sync(p,err or "Тайник недоступен") end
 end)
--- E по своему тайнику открывает окно тайника рядом с рюкзаком.
+-- E по своему тайнику открывает окно тайника рядом с рюкзаком; рядом с местом из наводки — обыск чужого.
 hook.Add("KeyPress","STALKER_INV.StashUse",function(p,key)
  if key~=IN_USE or not p:Alive() or (p.StashUseNext or 0)>CurTime() then return end
- local ent=S.FindStashInView(p);if not IsValid(ent) then return end
+ local ent=S.FindStashInView(p)
+ if not IsValid(ent) then if S.TryIntelUse then S.TryIntelUse(p) end;return end
  p.StashUseNext=CurTime()+.5
  local inv=p.StalkerInventory;local stash=inv and inv.stashes and inv.stashes[ent:GetStashID()]
  if not stash or p.StalkerLoadError or S.IsUnconscious(p) then return end

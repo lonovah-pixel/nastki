@@ -1,6 +1,11 @@
 local S = STALKER_INV
 local function int(v, lo, hi) return type(v)=="number" and v==v and v%1==0 and v>=lo and v<=hi end
 S.IsInt = int
+-- Жёсткие пределы формата сохранения (не настройки): число тайников и ячеек в одном тайнике (сеть: UInt(6)).
+S.StashHardLimit = 32
+S.StashMaxSlots = 40
+-- Предел координат — защита от мусора (карты Source меньше; запас для больших карт и тестового мира).
+S.MaxCoord = 10000000
 function S.EmptyInventory()
     return {version=1, revision=0, grid={}, equipment={}, quickbar={}, hunger=100, thirst=100, radiation=0, dose=0, stashes={}}
 end
@@ -114,17 +119,27 @@ function S.ValidateSaved(raw)
     for _,k in ipairs({"hunger","thirst"}) do out[k]=math.Clamp(tonumber(raw[k]) or 100,0,100) end
     out.dose=math.Clamp(tonumber(raw.dose) or 0,0,100)
     if raw.stashes~=nil then
-        if type(raw.stashes)~="table" or table.Count(raw.stashes)>S.Config.MaxStashes then return nil,"Повреждены тайники" end
+        -- Лимит количества — только защита от мусора: снижение MaxStashes в настройках не должно блокировать инвентарь.
+        if type(raw.stashes)~="table" or table.Count(raw.stashes)>S.StashHardLimit then return nil,"Повреждены тайники" end
         for id,stash in pairs(raw.stashes) do
-            if type(id)~="string" or #id>96 or type(stash)~="table" or type(stash.map)~="string" or type(stash.pos)~="table" or type(stash.items)~="table" then return nil,"Повреждён тайник" end
-            for _,axis in ipairs({"x","y","z"}) do local v=stash.pos[axis];if type(v)~="number" or v~=v or math.abs(v)>1000000 then return nil,"Координаты тайника" end end
+            if type(id)~="string" or #id>96 or type(stash)~="table" or type(stash.map)~="string" or #stash.map>128 or type(stash.pos)~="table" or type(stash.items)~="table" then return nil,"Повреждён тайник" end
+            for _,axis in ipairs({"x","y","z"}) do local v=stash.pos[axis];if type(v)~="number" or v~=v or math.abs(v)>S.MaxCoord then return nil,"Координаты тайника" end end
+            -- Вместимость хранится в тайнике; у старых тайников поля нет — у них было LegacyStashSlots ячеек.
+            local limit=stash.slots;if limit==nil then limit=S.Config.LegacyStashSlots end
+            if not int(limit,1,S.StashMaxSlots) then return nil,"Вместимость тайника" end
             local container=S.EmptyInventory();container.grid=stash.items
             local validated,err=S.ValidateSaved(container);if not validated then return nil,err end
-            for slot,item in pairs(validated.grid) do if slot>S.Config.StashSlots or seen[item.uid] then return nil,"Дубликат/слот тайника" end;seen[item.uid]=true end
-            out.stashes[id]={map=stash.map,pos=table.Copy(stash.pos),items=validated.grid}
+            for slot,item in pairs(validated.grid) do if slot>limit or seen[item.uid] then return nil,"Дубликат/слот тайника" end;seen[item.uid]=true end
+            out.stashes[id]={map=stash.map,pos=table.Copy(stash.pos),items=validated.grid,slots=limit}
         end
     end
     return out
+end
+-- Вместимость конкретного тайника (старые тайники без поля — прежние 20 ячеек).
+function S.StashSlotsOf(stash)
+    local n=type(stash)=="table" and tonumber(stash.slots) or nil
+    if not n then return S.Config.LegacyStashSlots end
+    return math.Clamp(math.floor(n),1,S.StashMaxSlots)
 end
 -- Тайник владельца, на который смотрит игрок (сущность без коллизии, поэтому без трассировки).
 function S.FindStashInView(ply)

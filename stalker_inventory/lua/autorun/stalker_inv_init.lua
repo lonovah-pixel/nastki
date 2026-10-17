@@ -1,9 +1,9 @@
 if SERVER and STALKER_WIPE and STALKER_WIPE.Blocked then return end
 -- STALKER Inventory: общий загрузчик. Порядок include важен.
 STALKER_INV = STALKER_INV or {}
-local shared = {"sh_config.lua", "sh_items.lua", "sh_core.lua", "sh_net.lua"}
+local shared = {"sh_config.lua", "sh_items.lua", "sh_core.lua", "sh_stats.lua", "sh_net.lua"}
 local clients = {"cl_style.lua", "cl_theme.lua", "cl_tooltip.lua", "cl_dragdrop.lua", "cl_slots.lua",
-    "cl_equipment.lua", "cl_quickbar.lua", "cl_pda.lua", "cl_menu.lua", "cl_stash.lua"}
+    "cl_equipment.lua", "cl_quickbar.lua", "cl_pda.lua", "cl_menu.lua", "cl_stash.lua", "cl_intel.lua"}
 if SERVER then
     for _, f in ipairs(shared) do AddCSLuaFile("stalker_inv/" .. f) end
     for _, f in ipairs(clients) do AddCSLuaFile("stalker_inv/" .. f) end
@@ -16,6 +16,9 @@ if SERVER then
     include("stalker_inv/sv_inventory.lua")
     include("stalker_inv/sv_stash.lua")
     include("stalker_inv/sv_api.lua")
+    -- Наводки на чужие тайники и износ брони опираются на API выше.
+    include("stalker_inv/sv_intel.lua")
+    include("stalker_inv/sv_wear.lua")
 else
     for _, f in ipairs(clients) do include("stalker_inv/" .. f) end
 end
