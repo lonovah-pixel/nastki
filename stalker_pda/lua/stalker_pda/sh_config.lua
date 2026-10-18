@@ -13,6 +13,11 @@ local defaults={
  EmissionForecast=true, -- прогноз выброса в сводке (время следующего выброса известно клиенту и так)
  WaypointReach=150,     -- на таком расстоянии (units) своя метка снимается автоматически
  RulesLink="",          -- ссылка на правила/Discord сервера в «Справочнике»
+ -- Подложка карты КПК (вид сверху, север +Y вверху): материал и границы мира, которые охватывает картинка.
+ -- Пример: MapMaterials={rp_zone="stalker_pda/maps/rp_zone.png"}, MapBounds={rp_zone={x1=-15000,y1=-15000,x2=15000,y2=15000}}.
+ -- Можно задать и в STALKER_INV.Config (MapMaterials + MapBounds) — тогда карта общая с картой тайников.
+ MapMaterials={},
+ MapBounds={},
 }
 for k,v in pairs(defaults) do if cfg[k]==nil then cfg[k]=v end end
 

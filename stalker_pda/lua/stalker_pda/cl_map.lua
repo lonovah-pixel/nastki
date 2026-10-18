@@ -30,12 +30,18 @@ function P.ParseBounds(b)
  return out
 end
 -- Подложка карты: материал и границы для текущей карты (картинка — вид сверху, север (+Y) вверху).
+-- Источники: STALKER_PDA.Config (MapMaterials/MapBounds, приоритетнее) и STALKER_INV.Config — общая подложка с картой тайников.
+local function mapField(field,map)
+ local S=STALKER_INV
+ for _,conf in ipairs({cfg,S and S.Config or nil}) do
+  local t=type(conf)=="table" and conf[field]
+  if type(t)=="table" and t[map]~=nil then return t[map] end
+ end
+end
 function P.MapImage()
- local S=STALKER_INV;local conf=S and S.Config
- if type(conf)~="table" or type(conf.MapMaterials)~="table" or type(conf.MapBounds)~="table" then return end
  local map=game.GetMap()
- local path=conf.MapMaterials[map];local bounds=P.ParseBounds(conf.MapBounds[map])
- if type(path)~="string" or not bounds then return end
+ local path=mapField("MapMaterials",map);local bounds=P.ParseBounds(mapField("MapBounds",map))
+ if type(path)~="string" or path=="" or not bounds then return end
  local mat=P.MapMats[path]
  if mat==nil then mat=Material(path,"smooth");if mat:IsError() then mat=false end;P.MapMats[path]=mat end
  if not mat then return end
@@ -112,45 +118,48 @@ P.MapMeters=meters
 
 --[[ Панель карты ]]
 local PANEL={}
-function PANEL:Init() self.Scale=nil;self.CX=0;self.CY=0;self:SetCursor("crosshair") end
-function PANEL:CursorLocal()
+-- Поля панели никогда не бывают nil: в GMod обращение к пустому полю уходит в методы Panel, поэтому «нет значения» — false.
+function PANEL:Init() self.MapScale=false;self.MapX=0;self.MapY=0;self.Drag=false;self.Bounds=false;self:SetCursor("crosshair") end
+function PANEL:CursorLocal(inside)
  local x,y=self:LocalCursorPos()
- if type(x)=="number" and type(y)=="number" then return x,y end
+ if type(x)~="number" or type(y)~="number" then return end
+ if inside and (x<0 or y<0 or x>self:GetWide() or y>self:GetTall()) then return end
+ return x,y
 end
-function PANEL:ToScreen(x,y,w,h) return w/2+(x-self.CX)*self.Scale,h/2-(y-self.CY)*self.Scale end
-function PANEL:ToWorld(sx,sy,w,h) return self.CX+(sx-w/2)/self.Scale,self.CY-(sy-h/2)/self.Scale end
+function PANEL:ToScreen(x,y,w,h) return w/2+(x-self.MapX)*self.MapScale,h/2-(y-self.MapY)*self.MapScale end
+function PANEL:ToWorld(sx,sy,w,h) return self.MapX+(sx-w/2)/self.MapScale,self.MapY-(sy-h/2)/self.MapScale end
 function PANEL:Fit(b,w,h)
- self.CX=(b.minx+b.maxx)/2;self.CY=(b.miny+b.maxy)/2
- self.Scale=math.max(1e-4,math.min(w/(b.maxx-b.minx),h/(b.maxy-b.miny))*.95)
- self.MinScale=self.Scale*.3;self.MaxScale=math.max(self.Scale*30,.5)
+ self.MapX=(b.minx+b.maxx)/2;self.MapY=(b.miny+b.maxy)/2
+ self.MapScale=math.max(1e-4,math.min(w/(b.maxx-b.minx),h/(b.maxy-b.miny))*.95)
+ self.MinScale=self.MapScale*.3;self.MaxScale=math.max(self.MapScale*30,.5)
  self.Bounds=b
 end
-function PANEL:CenterOn(pos) if pos and self.Scale then self.CX,self.CY=pos.x,pos.y end end
-function PANEL:Reset() self.Scale=nil end
+function PANEL:CenterOn(pos) if pos and self.MapScale then self.MapX,self.MapY=pos.x,pos.y end end
+function PANEL:Reset() self.MapScale=false end
 function PANEL:Zoom(delta,mx,my)
- if not self.Scale then return end
+ if not self.MapScale then return end
  local w,h=self:GetWide(),self:GetTall()
  mx,my=mx or w/2,my or h/2
  local wx,wy=self:ToWorld(mx,my,w,h)
- self.Scale=math.Clamp(self.Scale*(delta>0 and 1.25 or 1/1.25),self.MinScale,self.MaxScale)
+ self.MapScale=math.Clamp(self.MapScale*(delta>0 and 1.25 or 1/1.25),self.MinScale,self.MaxScale)
  -- Точка под курсором остаётся на месте.
- self.CX=wx-(mx-w/2)/self.Scale;self.CY=wy+(my-h/2)/self.Scale
+ self.MapX=wx-(mx-w/2)/self.MapScale;self.MapY=wy+(my-h/2)/self.MapScale
 end
 function PANEL:OnMouseWheeled(delta) local mx,my=self:CursorLocal();self:Zoom(delta,mx,my);return true end
 function PANEL:OnMousePressed(code)
  local mx,my=self:CursorLocal();if not mx then return end
- if code==MOUSE_LEFT then self.Drag={x=mx,y=my,cx=self.CX,cy=self.CY,moved=false};self:MouseCapture(true)
+ if code==MOUSE_LEFT then self.Drag={x=mx,y=my,cx=self.MapX,cy=self.MapY,moved=false};self:MouseCapture(true)
  elseif code==MOUSE_RIGHT and P.Waypoint then P.ClearWaypoint();surface.PlaySound("buttons/button16.wav") end
 end
 function PANEL:OnCursorMoved(x,y)
- local d=self.Drag;if not d or not self.Scale or type(x)~="number" then return end
+ local d=self.Drag;if not d or not self.MapScale or type(x)~="number" then return end
  if not d.moved and math.abs(x-d.x)+math.abs(y-d.y)>4 then d.moved=true;self:SetCursor("sizeall") end
- if d.moved then self.CX=d.cx-(x-d.x)/self.Scale;self.CY=d.cy+(y-d.y)/self.Scale end
+ if d.moved then self.MapX=d.cx-(x-d.x)/self.MapScale;self.MapY=d.cy+(y-d.y)/self.MapScale end
 end
 function PANEL:OnMouseReleased(code)
  if code~=MOUSE_LEFT or not self.Drag then return end
- local d=self.Drag;self.Drag=nil;self:MouseCapture(false);self:SetCursor("crosshair")
- if not d.moved and self.Scale then
+ local d=self.Drag;self.Drag=false;self:MouseCapture(false);self:SetCursor("crosshair")
+ if not d.moved and self.MapScale then
   local wx,wy=self:ToWorld(d.x,d.y,self:GetWide(),self:GetTall())
   local lp=LocalPlayer()
   P.SetWaypoint(Vector(wx,wy,IsValid(lp) and lp:GetPos().z or 0))
@@ -172,19 +181,19 @@ function PANEL:Paint(w,h)
  surface.SetDrawColor(c.track);surface.DrawRect(0,0,w,h)
  local markers=P.MapMarkers()
  local mat,b=P.MapImage()
- if not self.Scale then self:Fit(b or P.SchemeBounds(P.MapMarkers(true)),w,h) end
+ if not self.MapScale then self:Fit(b or P.SchemeBounds(P.MapMarkers(true)),w,h) end
  if mat then
   local x1,y1=self:ToScreen(b.minx,b.maxy,w,h);local x2,y2=self:ToScreen(b.maxx,b.miny,w,h)
   surface.SetMaterial(mat);surface.SetDrawColor(255,255,255,240);surface.DrawTexturedRect(x1,y1,x2-x1,y2-y1)
  else self:PaintGrid(w,h) end
- local mx,my=self:CursorLocal()
+ local mx,my=self:CursorLocal(true)
  local hover,best=nil,px(12)^2
  local labels=#markers<=40
  for _,m in ipairs(markers) do
   local x,y=self:ToScreen(m.pos.x,m.pos.y,w,h)
   if x>-px(40) and x<w+px(40) and y>-px(40) and y<h+px(40) then
    local col=m.color or c.accent
-   if tonumber(m.radius) and m.radius>0 then surface.DrawCircle(x,y,m.radius*self.Scale,col.r,col.g,col.b,110) end
+   if tonumber(m.radius) and m.radius>0 then surface.DrawCircle(x,y,m.radius*self.MapScale,col.r,col.g,col.b,110) end
    diamond(x,y,px(7),c.shadow);diamond(x,y,px(5),col)
    if labels and m.label then U.Text(U.Fit(m.label,"STALKER.Small",px(160)),"STALKER.Small",x+px(9),y-px(8),col) end
    if mx then local d=(mx-x)^2+(my-y)^2;if d<best then hover,best=m,d end end
@@ -221,10 +230,12 @@ function PANEL:Paint(w,h)
   U.Text("До курсора: "..meters(math.sqrt((wx-p.x)^2+(wy-p.y)^2)),"STALKER.Small",w-px(10),h-px(22),"muted",TEXT_ALIGN_RIGHT)
  end
  -- Масштабная линейка и север.
- local unitsPer=px(100)/self.Scale
+ local unitsPer=px(100)/self.MapScale
  U.Text(meters(unitsPer),"STALKER.Small",px(12),h-px(34),"text")
  surface.SetDrawColor(c.text);surface.DrawRect(px(12),h-px(14),px(100),2);surface.DrawRect(px(12),h-px(20),2,px(8));surface.DrawRect(px(110),h-px(20),2,px(8))
- U.Text("С ▲","STALKER.Small",w-px(12),px(8),"muted",TEXT_ALIGN_RIGHT)
+ local nx,ny=w-px(18),px(10)
+ draw.NoTexture();surface.SetDrawColor(c.accent);surface.DrawPoly({{x=nx,y=ny},{x=nx+px(6),y=ny+px(12)},{x=nx-px(6),y=ny+px(12)}})
+ U.Text("С","STALKER.Small",nx,ny+px(14),"muted",TEXT_ALIGN_CENTER)
  if not mat then U.Text("Схема: подложка карты не задана","STALKER.Small",px(12),px(8),"muted") end
  surface.SetDrawColor(c.line);surface.DrawOutlinedRect(0,0,w,h,1)
 end
@@ -232,7 +243,7 @@ vgui.Register("STALKER_PDAMap",PANEL,"DPanel")
 
 --[[ Легенда: типы меток с переключателями (фильтр), количество на карте ]]
 local function legendRow(parent,kind,def)
- local b=vgui.Create("DButton",parent);b:Dock(TOP);b:SetTall(px(28));b:DockMargin(0,0,0,px(2));b:SetText("");b.Kind=kind;b.Def=def
+ local b=vgui.Create("DButton",parent);b:Dock(TOP);b:SetTall(px(28));b:DockMargin(0,0,0,px(2));b:SetText("");b.Kind=kind;b.Def=def;b.Next=0;b.Count=0
  b.Paint=function(self,w,h)
   local hidden=P.MapHidden[self.Kind]==true
   if self:IsHovered() then surface.SetDrawColor(T.C.highlight);surface.DrawRect(0,0,w,h) end
@@ -255,7 +266,14 @@ P.AddTab("map",{title="Карта",order=20,build=function(parent)
  local map=vgui.Create("STALKER_PDAMap",parent);map:Dock(FILL)
  parent.Map=map
  local kinds={}
- for kind,def in pairs(MK and MK.Kinds or {}) do kinds[#kinds+1]={kind,def} end
+ local known=MK and MK.Kinds or {}
+ for kind,def in pairs(known) do kinds[#kinds+1]={kind,def} end
+ -- Типы, которых нет в реестре ядра (метки новых аддонов), тоже попадают в фильтр.
+ local extra={}
+ for _,m in ipairs(P.MapMarkers(true)) do
+  local kind=m.kind or "poi"
+  if not known[kind] and not extra[kind] then extra[kind]=true;kinds[#kinds+1]={kind,{label=tostring(kind),color=m.color}} end
+ end
  table.sort(kinds,function(a,b) return tostring(a[2].label or a[1])<tostring(b[2].label or b[1]) end)
  for _,k in ipairs(kinds) do legendRow(side,k[1],k[2]) end
  local tools=W.Blank(side,BOTTOM);tools:SetTall(px(200))

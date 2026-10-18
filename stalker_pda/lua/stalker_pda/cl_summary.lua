@@ -135,6 +135,7 @@ P.AddTab("summary",{title="Сводка",order=10,build=function(parent)
    U.Bar(px(16),y+px(22),w-px(32),px(7),q.progress/q.goal,done and T.C.ok or T.C.accent2)
   end
  end)
+ quests.List=P.QuestSummary()
  quests.Think=function(self)
   if (self.Next or 0)>CurTime() then return end
   self.Next=CurTime()+1;self.List=P.QuestSummary()
@@ -238,7 +239,7 @@ end
 P.AddTab("stats",{title="Статистика",order=40,build=function(parent)
  local bar=W.Blank(parent,TOP);bar:SetTall(px(32));bar:DockMargin(0,0,0,px(8))
  bar.Paint=function(_,w,h) U.Text("Рейтинг по показателю:","STALKER.Body",0,h/2,"muted",TEXT_ALIGN_LEFT,TEXT_ALIGN_CENTER) end
- local combo=vgui.Create("DComboBox",bar);combo:Dock(LEFT);combo:SetWide(px(280));combo:DockMargin(px(200),0,0,0);U.Combo(combo,"stalker_pda")
+ local combo=vgui.Create("DComboBox",bar);combo:Dock(LEFT);combo:SetWide(px(280));combo:DockMargin(px(200),0,0,0);U.Combo(combo,"stalker_pda");combo.Filled=false
  local refresh=U.Button(bar,"Обновить",function() P.RequestStats(P.StatsKey) end);refresh:Dock(LEFT);refresh:SetWide(px(130));refresh:DockMargin(px(8),0,0,0)
  local holder=W.Blank(parent,FILL)
  local left=vgui.Create("DPanel",holder);left:Dock(LEFT);left:DockPadding(px(10),px(32),px(10),px(10))

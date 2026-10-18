@@ -20,6 +20,14 @@ else
 end
 -- Кто был на сервере в этом сеансе: им можно написать и после выхода (имя — для списка собеседников).
 P.Seen=P.Seen or {}
+-- Под каким именем игрок видел собеседника в сети (модуль знакомств может скрывать ники) — после выхода собеседника
+-- КПК показывает то же имя, а не настоящий ник. [sid смотрящего][sid собеседника]=имя; живёт до выхода смотрящего.
+P.ShownNames=P.ShownNames or {}
+function P.Remember(viewer,other,name)
+ if type(viewer)~="string" or type(other)~="string" or type(name)~="string" or name=="" then return end
+ local t=P.ShownNames[viewer];if not t then t={};P.ShownNames[viewer]=t end
+ t[other]=name
+end
 
 function P.Push(ply,data) if IsValid(ply) then C.Send("stalker_pda.data",ply,data) end end
 
@@ -28,7 +36,8 @@ function P.UnreadCount(sid)
  return tonumber(sql.QueryValue("SELECT COUNT(*) FROM "..T.." WHERE recipient="..q(sid).." AND seen=0 AND del_r=0")) or 0
 end
 
--- Имя собеседника из последней переписки (как его видел viewer) или из списка «был в сети».
+-- Имя офлайн-собеседника для sid: из последней переписки, из увиденного в этом сеансе, иначе позывной сети
+-- (ник; при модуле знакомств — «Неизвестный сталкер», чтобы не раскрыть скрытое имя). nil — абонент неизвестен.
 function P.KnownName(sid,other)
  if P.DB then
   local rows=sql.Query("SELECT sender,sender_name,recipient_name FROM "..T.." WHERE (sender="..q(sid).." AND recipient="..q(other)..") OR (sender="..q(other)..
@@ -36,7 +45,11 @@ function P.KnownName(sid,other)
   local r=type(rows)=="table" and rows[1]
   if r then local name=r.sender==sid and r.recipient_name or r.sender_name;if name and name~="" then return name end end
  end
- return P.Seen[other]
+ local shown=P.ShownNames[sid] and P.ShownNames[sid][other]
+ if shown then return shown end
+ local nick=P.Seen[other]
+ if nick and STALKER_SOCIAL and STALKER_SOCIAL.DisplayName then return "Неизвестный сталкер" end
+ return nick
 end
 
 local function insert(from,to,fromName,toName,body)
@@ -53,6 +66,8 @@ function P.SendMessage(ply,to,text)
  if not P.DB then return false,"Хранилище сообщений недоступно" end
  if not P.ValidSID(to) then return false,"Неверный адресат" end
  if to==sid then return false,"Нельзя написать самому себе" end
+ -- Мут ULX (ulx mute) запрещает и личные сообщения КПК, иначе он обходится через КПК.
+ if ply:GetNWBool("ulx_muted",false)==true then return false,"Вам запрещено писать: администрация отключила вам чат" end
  local body,err=P.CleanText(text)
  if not body then return false,P.TextErrors[err] or "Недопустимое сообщение" end
  local wait=(ply.StalkerPDANext or 0)-CurTime()
@@ -63,8 +78,9 @@ function P.SendMessage(ply,to,text)
  local unread=tonumber(sql.QueryValue("SELECT COUNT(*) FROM "..T.." WHERE sender="..q(sid).." AND recipient="..q(to).." AND seen=0 AND del_r=0")) or 0
  if unread>=cfg.UnreadLimit then return false,"Адресат ещё не прочитал ваши прошлые сообщения" end
  if hook.Run("STALKER_PDA_CanMessage",ply,to,body)==false then return false,"Сообщение не отправлено" end
- -- Имя отправителя глазами получателя; получатель офлайн — позывной (ник) сети КПК.
- local fromName=IsValid(target) and P.NameFor(target,ply) or ply:Nick()
+ -- Имя отправителя глазами получателя; получатель офлайн — как он видел отправителя раньше, иначе позывной сети КПК.
+ local fromName=IsValid(target) and P.NameFor(target,ply) or P.KnownName(to,sid) or ply:Nick()
+ if IsValid(target) then P.Remember(sid,to,toName);P.Remember(to,sid,fromName) end
  local id=insert(sid,to,fromName,toName,body)
  if not id then return false,"Ошибка записи сообщения" end
  ply.StalkerPDANext=CurTime()+cfg.MessageInterval
@@ -109,8 +125,8 @@ function P.Inbox(ply)
  end
  for _,c in ipairs(list) do
   local p=not c.system and C.PlayerBySID(c.sid)
-  if IsValid(p) then c.online=true;c.name=P.NameFor(ply,p) end
-  if c.name=="" then c.name=P.Seen[c.sid] or "Неизвестный абонент" end
+  if IsValid(p) then c.online=true;c.name=P.NameFor(ply,p);P.Remember(sid,c.sid,c.name) end
+  if c.name=="" then c.name=(not c.system and P.KnownName(sid,c.sid)) or "Неизвестный абонент" end
  end
  return list
 end
@@ -138,8 +154,11 @@ function P.MarkRead(ply,other)
 end
 function P.SendThread(ply,other)
  P.MarkRead(ply,other)
+ local sid=C.SID(ply)
  local p=not P.IsSystem(other) and C.PlayerBySID(other)
- P.Push(ply,{kind="thread",sid=other,name=IsValid(p) and P.NameFor(ply,p) or P.KnownName(C.SID(ply),other) or "Неизвестный абонент",
+ local name=IsValid(p) and P.NameFor(ply,p) or P.KnownName(sid,other) or "Неизвестный абонент"
+ if IsValid(p) then P.Remember(sid,other,name) end
+ P.Push(ply,{kind="thread",sid=other,name=name,
   online=IsValid(p) or nil,system=P.IsSystem(other) or nil,messages=P.Thread(ply,other),unread=P.UnreadCount(C.SID(ply))})
 end
 
@@ -169,8 +188,9 @@ function ops.read(ply,a)
  P.MarkRead(ply,a.sid);P.Push(ply,{kind="unread",n=P.UnreadCount(C.SID(ply)),sid=a.sid})
 end
 function ops.send(ply,a)
- if not C.Rate(ply,"pda.send",1,3) then return end
- local ok,res=P.SendMessage(ply,a.to,a.text)
+ -- Ответ нужен и при отказе: клиент ждёт результата, чтобы вернуть текст в поле ввода.
+ local ok,res
+ if C.Rate(ply,"pda.send",1,3) then ok,res=P.SendMessage(ply,a.to,a.text) else ok,res=false,"Слишком часто: подождите немного" end
  P.Push(ply,{kind="result",ok=ok,to=type(a.to)=="string" and a.to:sub(1,20) or nil,msg=ok and res or nil,error=not ok and res or nil,
   next=ok and cfg.MessageInterval or nil})
 end
@@ -195,7 +215,7 @@ hook.Add("PlayerInitialSpawn","STALKER_PDA.Messages",function(ply)
   if n>0 and C.Notify then C.Notify(ply,"Непрочитанных сообщений в КПК: "..n..". Откройте КПК (F4) → «Сообщения».","info",9) end
  end)
 end)
-hook.Add("PlayerDisconnected","STALKER_PDA.Messages",function(ply) local sid=C.SID(ply);if sid then P.Seen[sid]=ply:Nick() end end)
+hook.Add("PlayerDisconnected","STALKER_PDA.Messages",function(ply) local sid=C.SID(ply);if sid then P.Seen[sid]=ply:Nick();P.ShownNames[sid]=nil end end)
 
 -- Чат: !pda, !кпк (в любом регистре), /pda.
 local chat={["!pda"]=true,["/pda"]=true,["!кпк"]=true,["/кпк"]=true}

@@ -118,7 +118,7 @@ local function contactPaint(self,w,h)
  if unread>0 then P.DrawBadge(unread,w-px(8),px(34),TEXT_ALIGN_RIGHT) end
 end
 local function bubble(parent,m,name)
- local b=vgui.Create("DPanel",parent);b:Dock(TOP);b:DockMargin(0,0,0,px(6));b.Msg=m;b.Name=name;b:SetTall(px(48))
+ local b=vgui.Create("DPanel",parent);b:Dock(TOP);b:DockMargin(0,0,0,px(6));b.Msg=m;b.Name=name or "";b.BW=false;b.LH=px(17);b.Lines={};b:SetTall(px(48))
  b.PerformLayout=function(self,w)
   local bw=math.floor(w*.74);self.BW=bw
   self.Lines=U.Wrap(self.Msg.text or "","STALKER.Body",bw-px(24))
@@ -135,7 +135,7 @@ local function bubble(parent,m,name)
   U.Text(msg.mine and "Вы" or U.Fit(self.Name or "","STALKER.Small",bw*.5),"STALKER.Small",x+px(12),px(5),msg.mine and "accent" or "info")
   local status=P.Ago(msg.t)..(msg.mine and (msg.seen and " · прочитано" or " · доставлено") or "")
   U.Text(status,"STALKER.Small",x+bw-px(12),px(5),"muted",TEXT_ALIGN_RIGHT)
-  for i,line in ipairs(self.Lines or {}) do U.Text(line,"STALKER.Body",x+px(12),px(24)+(i-1)*(self.LH or px(17)),"text") end
+  for i,line in ipairs(self.Lines) do U.Text(line,"STALKER.Body",x+px(12),px(24)+(i-1)*self.LH,"text") end
  end
  return b
 end
@@ -143,6 +143,7 @@ end
 P.AddTab("messages",{title="Сообщения",order=60,badge=function() return (P.Unread or 0)>0 and P.Unread or nil end,build=function(parent)
  -- Слева: собеседники (переписки и игроки в сети).
  local left=vgui.Create("DPanel",parent);left:Dock(LEFT);left:SetWide(px(300));left:DockMargin(0,0,px(10),0);left:DockPadding(px(6),px(30),px(6),px(6))
+ left.Next=0;left.Online=-1
  left.Paint=function(_,w,h) U.Panel("",0,0,w,h,false);U.Text("СОБЕСЕДНИКИ","STALKER.Small",px(10),px(9),"muted") end
  local search=vgui.Create("DTextEntry",left);search:Dock(TOP);search:SetTall(px(30));search:DockMargin(0,0,0,px(6));U.Entry(search)
  search:SetPlaceholderText("Поиск по имени")
@@ -162,7 +163,7 @@ P.AddTab("messages",{title="Сообщения",order=60,badge=function() return
   else status,token="Не в сети — сообщение дойдёт, когда абонент войдёт","muted" end
   U.Text(status,"STALKER.Small",0,px(26),token)
  end
- local del=U.Button(head,"Удалить переписку",nil,"danger");del:Dock(RIGHT);del:SetWide(px(200));del:DockMargin(0,px(8),0,px(10))
+ local del=U.Button(head,"Удалить переписку",nil,"danger");del.ConfirmUntil=0;del:Dock(RIGHT);del:SetWide(px(200));del:DockMargin(0,px(8),0,px(10))
  local compose=vgui.Create("DPanel",right);compose:Dock(BOTTOM);compose:SetTall(px(64));compose:DockMargin(0,px(8),0,0)
  compose.Paint=function(_,w,h)
   local entryText=compose.Entry and compose.Entry:GetValue();entryText=type(entryText)=="string" and entryText or ""
@@ -175,7 +176,7 @@ P.AddTab("messages",{title="Сообщения",order=60,badge=function() return
  local send=U.Button(compose,"Отправить",nil,"accent");send:Dock(RIGHT);send:SetWide(px(150));send:DockMargin(px(8),0,0,px(20))
  local entry=vgui.Create("DTextEntry",compose);entry:Dock(FILL);entry:DockMargin(0,0,0,px(20));U.Entry(entry);compose.Entry=entry
  entry:SetPlaceholderText("Сообщение… (Enter — отправить)")
- local thread=W.Scroll(right)
+ local thread=W.Scroll(right);thread.ScrollUntil=0
  thread.Think=function(self)
   -- После построения переписки прокручиваем вниз, пока раскладка не устоится.
   if (self.ScrollUntil or 0)>CurTime() then local bar=self:GetVBar();if bar and bar.SetScroll then bar:SetScroll(math.huge) end end

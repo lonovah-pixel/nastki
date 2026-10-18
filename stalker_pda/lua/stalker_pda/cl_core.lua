@@ -15,7 +15,8 @@ function W.Head(parent,text) local l=U.Label(parent,text,"STALKER.Head","accent"
 function W.Text(parent,text,token,font) local l=U.Label(parent,text,font or "STALKER.Body",token or "text");l:Dock(TOP);l:DockMargin(0,0,0,px(6));return l end
 function W.Blank(parent,dock) local p=vgui.Create("DPanel",parent);p:Dock(dock or FILL);p.Paint=function() end;return p end
 function W.Card(parent,h,paint)
- local c=vgui.Create("DPanel",parent);c:Dock(TOP);c:SetTall(px(h));c:DockMargin(0,0,0,px(8))
+ -- Поля панелей задаём сразу: пустое поле панели в GMod ищется среди методов Panel.
+ local c=vgui.Create("DPanel",parent);c:Dock(TOP);c:SetTall(px(h));c:DockMargin(0,0,0,px(8));c.Active=false;c.Next=0
  c.Paint=function(self,w,hh) U.Panel("",0,0,w,hh,self.Active==true);if paint then paint(self,w,hh) end end
  return c
 end
@@ -23,7 +24,7 @@ function W.Button(parent,label,fn,kind) local b=U.Button(parent,label,fn,kind);b
 --[[ Карточка с переносом текста: высота подбирается по ширине (PerformLayout). opts: head, headToken, right, rightToken, text,
  font, color (полоса слева), token (цвет текста) ]]
 function W.TextCard(parent,opts)
- local c=vgui.Create("DPanel",parent);c:Dock(TOP);c:DockMargin(0,0,0,px(6));c.Opts=opts;c.Lines={};c:SetTall(px(48))
+ local c=vgui.Create("DPanel",parent);c:Dock(TOP);c:DockMargin(0,0,0,px(6));c.Opts=opts;c.Lines={};c.LineH=px(16);c:SetTall(px(48))
  c.PerformLayout=function(self,w)
   local o=self.Opts;local font=o.font or "STALKER.Body"
   self.Lines=U.Wrap(o.text or "",font,w-px(28))
@@ -41,7 +42,7 @@ function W.TextCard(parent,opts)
    if o.right then U.Text(o.right,"STALKER.Mono",w-px(10),y,o.rightToken or "muted",TEXT_ALIGN_RIGHT) end
    y=y+px(20)
   end
-  for i,line in ipairs(self.Lines) do U.Text(line,o.font or "STALKER.Body",px(14),y+(i-1)*(self.LineH or px(16)),o.token or "text") end
+  for i,line in ipairs(self.Lines) do U.Text(line,o.font or "STALKER.Body",px(14),y+(i-1)*self.LineH,o.token or "text") end
  end
  return c
 end
@@ -85,20 +86,28 @@ function P.AddTab(id,def)
  P.Builtin[id]=def
  if P.IsOpen() then P.BuildNav() end
 end
+-- Ошибка visible() — вкладка остаётся видимой (лучше лишняя вкладка, чем пропавшая).
 local function shown(def)
- if not def.visible then return true end
+ if type(def.visible)~="function" then return true end
  local ok,v=pcall(def.visible);return not ok or v~=false
 end
 function P.TabList()
  local list={}
  for _,def in pairs(P.Builtin) do if shown(def) then list[#list+1]=def end end
  table.sort(list,function(a,b) if a.order~=b.order then return a.order<b.order end;return a.id<b.id end)
- if C.PDATabList then
-  local ok,ext=pcall(C.PDATabList)
-  for _,def in ipairs(ok and type(ext)=="table" and ext or {}) do
-   if type(def)=="table" and type(def.id)=="string" and not P.Builtin[def.id] and type(def.build)=="function" then list[#list+1]=def end
-  end
+ -- Вкладки модулей читаем из реестра ядра сами: ошибка visible() одного модуля не должна прятать остальные.
+ local ext={}
+ if type(C.PDATabs)=="table" then
+  for id,def in pairs(C.PDATabs) do if type(def)=="table" and def.id==nil then def.id=id end;ext[#ext+1]=def end
+ elseif C.PDATabList then
+  local ok,res=pcall(C.PDATabList);if ok and type(res)=="table" then ext=res end
  end
+ local mods={}
+ for _,def in ipairs(ext) do
+  if type(def)=="table" and type(def.id)=="string" and not P.Builtin[def.id] and type(def.build)=="function" and shown(def) then mods[#mods+1]=def end
+ end
+ table.sort(mods,function(a,b) local oa,ob=tonumber(a.order) or 100,tonumber(b.order) or 100;if oa~=ob then return oa<ob end;return a.id<b.id end)
+ for _,def in ipairs(mods) do list[#list+1]=def end
  return list
 end
 function P.FindTab(id) for _,def in ipairs(P.TabList()) do if def.id==id then return def end end end
@@ -172,6 +181,8 @@ end
 
 function P.Open(tab)
  if not U or not U.Window then return end
+ -- Без сознания (после выброса) КПК недоступен.
+ if C.Unconscious and C.Unconscious(LocalPlayer()) then if C.Toast then C.Toast("Вы без сознания: КПК недоступен.","warn",3) end;return end
  if P.IsOpen() then if tab then P.Select(tab) end;P.Frame:MoveToFront();return P.Frame end
  local f=U.Window({title="КПК",w=1120,h=720,onClose=function()
   P.Frame=nil;P.Body=nil;P.Content=nil;P.NavList=nil;hook.Run("STALKER_PDA_Closed")

@@ -150,7 +150,33 @@ if SERVER then
  check(say(a,"!КПК")=="" and tostring(a._concommands):find("stalker_pda",1,true),"!КПК в чате открывает КПК")
  check(say(a," !pda ")=="" and say(a,"/кпк")=="","!pda и /кпк")
  check(say(a,"привет всем")==nil,"обычный чат не перехватывается")
+ section("КПК: мут ULX, частота и скрытые имена")
+ M.advance(5)
+ local ss=spam:SteamID64()
+ a:SetNWBool("ulx_muted",true)
+ local okMute,errMute=P.SendMessage(a,ss,"тест")
+ check(not okMute and tostring(errMute):find("отключила",1,true),"мут ULX запрещает сообщения КПК")
+ a:SetNWBool("ulx_muted",false)
+ M.netSent={};a.StalkerRate=a.StalkerRate or {};a.StalkerRate["pda.send"]={n=0,t=CurTime()}
+ req(a,{op="send",to=ss,text="быстро"})
+ local rr=decode(lastTo("stalker_pda.data",a))
+ check(rr and rr.kind=="result" and rr.ok==false and tostring(rr.error):find("Слишком часто",1,true),"превышение частоты — отказ с ответом клиенту")
+ local hid=TEST.join({nick="Настоящий Ник",pos=Vector(X+1200,0,0)})
+ local sh=hid:SteamID64()
+ STALKER_SOCIAL={DisplayName=function(viewer,target) if target==hid then return "Незнакомец в плаще" end;return target:Nick() end}
+ M.advance(5);M.netSent={}
+ req(a,{op="thread",sid=sh})
+ local thH=decode(lastTo("stalker_pda.data",a))
+ check(thH and thH.kind=="thread" and thH.name=="Незнакомец в плаще","собеседник под именем из модуля знакомств")
+ hook.Run("PlayerDisconnected",hid);M.removePlayer(hid)
+ M.advance(2.1)
+ check(P.SendMessage(a,sh,"Ты кто?") and P.KnownName(sa,sh)=="Незнакомец в плаще","офлайн-адресат под тем же скрытым именем")
+ check(count("recipient="..sql.SQLStr(sh).." AND recipient_name='Незнакомец в плаще'")==1 and count("recipient_name='Настоящий Ник'")==0,"настоящий ник не записан")
+ check(P.KnownName(ss,sh)=="Неизвестный сталкер","кто не видел абонента в сети — не узнает его ник")
+ STALKER_SOCIAL=nil
+ check(P.KnownName(ss,sh)=="Настоящий Ник","без модуля знакомств — ник")
  for _,p in ipairs({a,b3,spam}) do hook.Run("PlayerDisconnected",p);M.removePlayer(p) end
+ check(P.ShownNames[sa]==nil,"память имён очищается при выходе")
 else
  local lp=LocalPlayer();local oldPos=lp:GetPos();lp:SetPos(Vector(X,0,0))
  section("КПК: клиент — окно и вкладки")
@@ -159,6 +185,12 @@ else
  check(table.concat(ids,",",1,7)=="summary,map,news,stats,encyclopedia,messages,guide","порядок своих вкладок: "..table.concat(ids,","))
  C.RegisterPDATab("zz_test",{title="Модуль",order=1,build=function(p) p.Built=true end,badge=function() return 2 end})
  C.RegisterPDATab("zz_bad",{title="Сломанная",order=2,build=function() error("сбой вкладки") end,badge=function() error("сбой значка") end})
+ C.RegisterPDATab("zz_hidden",{title="Скрытая",order=3,build=function() end,visible=function() return false end})
+ C.RegisterPDATab("zz_visfail",{title="Без проверки",order=4,build=function() end,visible=function() error("сбой visible") end})
+ local listV=P.TabList();local vis={}
+ for _,def in ipairs(listV) do vis[def.id]=true end
+ check(not vis.zz_hidden and vis.zz_visfail and vis.zz_test,"visible() скрывает вкладку, ошибка visible() не ломает список")
+ C.PDATabs.zz_hidden=nil;C.PDATabs.zz_visfail=nil
  local list=P.TabList()
  check(list[8] and list[8].id=="zz_test" and list[9].id=="zz_bad","вкладки модулей идут после своих")
  local hasFactions=false;for i=8,#list do if list[i].id=="factions" then hasFactions=true end end
@@ -218,21 +250,21 @@ else
  local hidden=false;for _,m in ipairs(P.MapMarkers()) do if m.id=="pda.test2" then hidden=true end end
  check(not hidden,"метки с map=false на карте не показываются")
  M.protect("карта: схема",map.Paint,map,900,600)
- check(map.Scale and map.Scale>0,"масштаб схемы подобран по меткам и игроку")
+ check(map.MapScale and map.MapScale>0,"масштаб схемы подобран по меткам и игроку")
  local px,py=map:ToScreen(X,0,900,600);local wx,wy=map:ToWorld(px,py,900,600)
  check(math.abs(wx-X)<1e-6 and math.abs(wy)<1e-6,"преобразование мир ↔ экран обратимо")
  map.LocalCursorPos=function() return 450,300 end
  M.protect("карта: курсор и подсказка",map.Paint,map,900,600)
- local s0=map.Scale;local cx,cy=map:ToWorld(450,300,900,600)
- map:OnMouseWheeled(1);check(map.Scale>s0,"колесо увеличивает масштаб")
+ local s0=map.MapScale;local cx,cy=map:ToWorld(450,300,900,600)
+ map:OnMouseWheeled(1);check(map.MapScale>s0,"колесо увеличивает масштаб")
  local cx2,cy2=map:ToWorld(450,300,900,600)
  check(math.abs(cx-cx2)<1e-6 and math.abs(cy-cy2)<1e-6,"точка под курсором не смещается при масштабе")
  map:OnMouseWheeled(-1)
- for _=1,40 do map:OnMouseWheeled(-1) end;check(map.Scale>=map.MinScale,"масштаб ограничен снизу")
+ for _=1,40 do map:OnMouseWheeled(-1) end;check(map.MapScale>=map.MinScale,"масштаб ограничен снизу")
  map:Reset();M.protect("карта: сброс",map.Paint,map,900,600)
- local before=map.CX
+ local before=map.MapX
  map:OnMousePressed(MOUSE_LEFT);map:OnCursorMoved(520,300);map:OnMouseReleased(MOUSE_LEFT)
- check(map.CX<before and P.Waypoint==nil,"перетаскивание сдвигает карту и не ставит метку")
+ check(map.MapX<before and P.Waypoint==nil,"перетаскивание сдвигает карту и не ставит метку")
  map:OnMousePressed(MOUSE_LEFT);map:OnMouseReleased(MOUSE_LEFT)
  local wpx,wpy=map:ToWorld(450,300,900,600)
  local wp=MK.Local[P.WaypointID]
@@ -259,8 +291,16 @@ else
  P.MapMats["stalker_pda/test.png"]=M.stub("mat")
  local mat,bounds=P.MapImage()
  check(mat and bounds and bounds.minx==X-5000 and bounds.maxy==6000,"подложка карты из STALKER_INV.Config")
+ P.Config.MapMaterials["gm_test"]="stalker_pda/own.png";P.Config.MapBounds["gm_test"]={0,0,100,200}
+ local own=M.stub("own");P.MapMats["stalker_pda/own.png"]=own
+ local mat2,bounds2=P.MapImage()
+ check(mat2==own and bounds2.maxy==200,"своя подложка КПК важнее подложки инвентаря")
+ P.Config.MapMaterials["gm_test"]=nil;P.Config.MapBounds["gm_test"]=nil;P.MapMats["stalker_pda/own.png"]=nil
+ map.LocalCursorPos=function() return -5,300 end
+ check(map:CursorLocal(true)==nil and map:CursorLocal()==-5,"курсор вне карты — без подсказки")
+ M.protect("карта: курсор снаружи",map.Paint,map,900,600)
  map:Reset();M.protect("карта: подложка",map.Paint,map,900,600)
- check(math.abs(map.CX-X)<1 and math.abs(map.CY-1000)<1,"карта центрируется по границам подложки")
+ check(math.abs(map.MapX-X)<1 and math.abs(map.MapY-1000)<1,"карта центрируется по границам подложки")
  conf.MapMaterials["gm_test"]=nil;conf.MapBounds["gm_test"]=nil;P.MapMats["stalker_pda/test.png"]=nil
  MK.RemoveLocal("pda.test1");MK.RemoveLocal("pda.test2")
 
@@ -370,6 +410,10 @@ else
  check(type(rawget(frame,"OnKeyCodePressed"))=="function" and frame.OnKeyCodePressed(frame,P.ToggleKey())==true,"F4 в открытом окне закрывает его")
  M.protect("окно: шапка",rawget(frame,"Paint"),frame,1120,720);M.protect("окно: проверка обморока",rawget(frame,"Think"),frame)
  C.OpenPDA("guide");check(P.Current=="guide","STALKER_CORE.OpenPDA открывает КПК")
+ P.Close()
+ local oldUnc=C.Unconscious;C.Unconscious=function() return true end
+ check(P.Open("summary")==nil and not P.IsOpen(),"без сознания КПК не открывается")
+ C.Unconscious=oldUnc
 
  section("КПК: клиент — без соседних аддонов")
  local names={"STALKER_ZONE","STFW","ST_EMISSION","STALKER_RAD","STALKER_INV","STALKER_BUTCHERING"}
