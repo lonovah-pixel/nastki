@@ -9,6 +9,9 @@ function PANEL:GetItem()
         local stash=S.Inventory.stashes and S.Inventory.stashes[self.StashID]
         return stash and stash.items[self.Index]
     end
+    if self.Zone=="foreign" then
+        local f=S.Foreign;return f and f.intel==self.IntelID and f.items[self.Index] or nil
+    end
     local item=S.GetAt(S.Inventory,self.Zone,self.Index)
     if item and S.ActiveTab=="Артефакты" and self.Zone=="grid" and S.Items[item.id].category~="artifact" then return end
     return item
@@ -25,17 +28,17 @@ function PANEL:Paint(w,h)
     self.HoverAlpha=Lerp(math.min(1,FrameTime()*14),self.HoverAlpha,active and 1 or 0)
     S.PaintPanel(0,0,w,h,active)
     if self.Zone=="equipment" and tostring(self.Index):find("artifact",1,true) then
-        surface.SetDrawColor(74,122,58,22);surface.DrawRect(1,1,w-2,h-2)
+        S.SetColor(S.C.ok,22);surface.DrawRect(1,1,w-2,h-2)
     end
-    surface.SetDrawColor(200,169,81,(dropTarget and 45 or 20)*self.HoverAlpha);surface.DrawRect(1,1,w-2,h-2)
+    S.SetColor(S.C.accent,(dropTarget and 45 or 20)*self.HoverAlpha);surface.DrawRect(1,1,w-2,h-2)
     S.DrawBrassFrame(0,0,w,h,active)
     if item then
-        if d and d.active and d.source==self then surface.SetDrawColor(0,0,0,120);surface.DrawRect(1,1,w-2,h-2) end
+        if d and d.active and d.source==self then S.SetColor(S.C.shadow,120);surface.DrawRect(1,1,w-2,h-2) end
         S.DrawItemIcon(item,S.Px(6),S.Px(8),w-S.Px(12),h-S.Px(18))
         if item.count>1 then S.Text("x"..item.count,"SI.Small",w-S.Px(4),S.Px(3),S.C.text,TEXT_ALIGN_RIGHT) end
-        surface.SetDrawColor(S.C.background);surface.DrawRect(S.Px(5),h-S.Px(7),w-S.Px(10),S.Px(3))
-        surface.SetDrawColor(item.durability<25 and S.C.danger or S.C.ok)
-        surface.DrawRect(S.Px(5),h-S.Px(7),(w-S.Px(10))*item.durability/100,S.Px(3))
+        S.SetColor(S.C.track);surface.DrawRect(S.Px(5),h-S.Px(7),w-S.Px(10),S.Px(3))
+        S.SetColor(S.ConditionColor(item.durability))
+        surface.DrawRect(S.Px(5),h-S.Px(7),(w-S.Px(10))*math.Clamp(item.durability,0,100)/100,S.Px(3))
     elseif self.Label then
         local lines=S.Wrap(self.Label,"SI.Small",w-S.Px(8))
         for i=1,math.min(3,#lines) do S.Text(lines[i],"SI.Small",w/2,h/2+S.Px((i-(math.min(3,#lines)+1)/2)*12),S.C.muted,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER) end
@@ -52,12 +55,16 @@ local function stashOpen() return IsValid(S.StashFrame) and S.StashFrame.StashID
 function PANEL:OnMousePressed(code)
     local item=self:GetItem()
     if not item then return end
-    S.SelectedUID=item.uid;if IsValid(S.Frame) then S.Frame:RefreshDetail() end
+    if self.Zone~="foreign" then S.SelectedUID=item.uid;if IsValid(S.Frame) then S.Frame:RefreshDetail() end end
     if code==MOUSE_RIGHT then
         S.CancelDrag();S.HideTooltip()
         local m=DermaMenu()
         if self.Zone=="stash" then
             m:AddOption("Забрать в рюкзак",function() S.StashAct("take",self.StashID,self.Index,0) end)
+            m:Open();return
+        end
+        if self.Zone=="foreign" then
+            m:AddOption("Забрать в рюкзак",function() S.LootAct(self.IntelID,self.Index) end)
             m:Open();return
         end
         local d=S.Items[item.id]
@@ -74,7 +81,9 @@ function PANEL:OnMousePressed(code)
     if code~=MOUSE_LEFT then return end
     if self.LastClick and RealTime()-self.LastClick<.28 then
         self.LastClick=nil;S.CancelDrag()
-        if self.Zone=="stash" then S.StashAct("take",self.StashID,self.Index,0) else S.SendAction("use",self.Zone,self.Index) end
+        if self.Zone=="stash" then S.StashAct("take",self.StashID,self.Index,0)
+        elseif self.Zone=="foreign" then S.LootAct(self.IntelID,self.Index)
+        else S.SendAction("use",self.Zone,self.Index) end
     else self.LastClick=RealTime();S.BeginDrag(self) end
 end
 function PANEL:OnMouseReleased(code) if code==MOUSE_LEFT then S.EndDrag() end end

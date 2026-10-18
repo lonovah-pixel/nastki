@@ -9,15 +9,21 @@ function PANEL:Init()
     self.Grid.Paint=function(_,w,h)
         local count=table.Count(S.Inventory.grid)
         S.Text((S.ActiveTab=="Артефакты" and "АРТЕФАКТЫ" or "РЮКЗАК").." / "..count.." ИЗ 40","SI.Title",0,0,S.C.muted)
-        S.Text(IsValid(S.StashFrame) and "Перетащите предмет в тайник справа или в ячейку рюкзака" or "Перетащите предмет в ячейку или быстрый слот","SI.Small",0,S.Px(370),S.C.muted)
+        local hint=IsValid(S.StashFrame) and (S.StashFrame.Foreign and "Перетащите предмет из чужого тайника в рюкзак" or "Перетащите предмет в тайник справа или в ячейку рюкзака")
+            or "Перетащите в ячейку или быстрый слот · 2×ЛКМ — действие · ПКМ — меню"
+        S.Text(S.FitText(hint,"SI.Small",w),"SI.Small",0,S.Px(370),S.C.muted)
     end
     self.GridSlots={}
     for i=1,40 do self.GridSlots[i]=S.MakeSlot(self.Grid,"grid",i,((i-1)%8)*64,28+math.floor((i-1)/8)*66,62) end
     -- Предмет из тайника, отпущенный на свободное место рюкзака, кладётся в первую свободную ячейку.
-    S.DropAreas[self.Grid]=function(src) if src.Zone=="stash" then S.StashAct("take",src.StashID,src.Index,0) end end
+    S.DropAreas[self.Grid]=function(src)
+        if src.Zone=="stash" then S.StashAct("take",src.StashID,src.Index,0)
+        elseif src.Zone=="foreign" then S.LootAct(src.IntelID,src.Index) end
+    end
+    -- «Карта» и «PDA» заменены сводкой: полный КПК открывается кнопкой на вкладке (F4).
     self.PDA=S.BuildPDA(self);self.Tabs={}
-    for i,label in ipairs({"Рюкзак","Артефакты","Карта","PDA"}) do
-        local tab=vgui.Create("DToggleTab",self);tab.Label=label;tab:SetPos(S.Px(520+(i-1)*106),S.Px(80));tab:SetSize(S.Px(102),S.Px(32));tab.Active=i==1
+    for i,label in ipairs({"Рюкзак","Артефакты","Сводка"}) do
+        local tab=vgui.Create("DToggleTab",self);tab.Label=label;tab:SetPos(S.Px(626+(i-1)*106),S.Px(80));tab:SetSize(S.Px(102),S.Px(32));tab.Active=i==1
         tab.DoClick=function() self:SetTab(label) end;self.Tabs[#self.Tabs+1]=tab
     end
     S.Button(self,"Тайники",760,22,124,34,function() S.Close();S.OpenStashManager() end)
@@ -29,9 +35,10 @@ function PANEL:Init()
             if action=="disassemble" then S.ConfirmDisassemble(zone,index) else S.SendAction(action,zone,index) end
         end
     end
-    self.Use=S.Button(self.Detail,"Использовать",12,274,188,28,function() selected("use") end)
-    self.Drop=S.Button(self.Detail,"Выбросить",12,310,188,28,function() selected("drop") end)
-    self.Disassemble=S.Button(self.Detail,"Разобрать",12,346,188,28,function() selected("disassemble") end)
+    -- Кнопки компактнее, чтобы в карточке поместились все характеристики брони.
+    self.Use=S.Button(self.Detail,"Использовать",12,318,188,28,function() selected("use") end)
+    self.Drop=S.Button(self.Detail,"Выбросить",12,352,92,28,function() selected("drop") end)
+    self.Disassemble=S.Button(self.Detail,"Разобрать",108,352,92,28,function() selected("disassemble") end)
     self:RefreshDetail()
     -- Фон рисуется в Paint до дочерних слотов. Поверх предметов эффектов нет.
 end
@@ -47,25 +54,28 @@ function PANEL:RefreshDetail()
     self.Use:SetEnabled(item~=nil);self.Drop:SetEnabled(item~=nil)
     self.Disassemble:SetEnabled(item~=nil and S.Items[item.id].salvage~=nil and S.Config.AllowDisassemble)
 end
+-- Карточка предмета: значок, название, описание, состояние и характеристики с полосами (с учётом износа).
 function PANEL:PaintDetail(w,h)
     S.PaintPanel(0,0,w,h)
     local item=S.FindUID(S.Inventory,S.SelectedUID)
-    if not item then S.Text("Выберите предмет","SI.Body",S.Px(12),S.Px(24),S.C.muted);return end
-    local d=S.Items[item.id]
-    surface.SetDrawColor(S.C.background);surface.DrawRect(S.Px(12),S.Px(12),S.Px(188),S.Px(86))
-    S.DrawItemIcon(item,S.Px(32),S.Px(12),S.Px(148),S.Px(86))
-    S.Text(S.FitText(d.name,"SI.Title",S.Px(188)),"SI.Title",S.Px(12),S.Px(108),S.C.accent)
-    S.Text(string.format("%s / %.2f kg",(S.CategoryNames[d.category] or d.category),d.weight),"SI.Small",S.Px(12),S.Px(137),S.C.muted)
-    local lines=S.Wrap(d.description,"SI.Body",S.Px(188))
-    for i=1,math.min(2,#lines) do S.Text(S.FitText(lines[i],"SI.Body",S.Px(188)),"SI.Body",S.Px(12),S.Px(158+(i-1)*17)) end
-    local y=201;local n=0
-    for key,val in SortedPairs(d.stats) do
-        if n>=2 then break end
-        S.Text(S.StatNames[key] or key,"SI.Small",S.Px(12),S.Px(y),S.C.muted)
-        S.Text(tostring(val),"SI.Small",S.Px(200),S.Px(y),S.C.text,TEXT_ALIGN_RIGHT);y=y+18;n=n+1
+    if not item or not S.Items[item.id] then S.Text("Выберите предмет","SI.Body",S.Px(12),S.Px(24),S.C.muted);return end
+    local d=S.Items[item.id];local cw=S.Px(188)
+    S.SetColor(S.C.track);surface.DrawRect(S.Px(12),S.Px(12),cw,S.Px(60))
+    S.DrawItemIcon(item,S.Px(42),S.Px(14),S.Px(128),S.Px(56))
+    if item.count>1 then S.Text("x"..item.count,"SI.Small",S.Px(196),S.Px(15),S.C.text,TEXT_ALIGN_RIGHT) end
+    S.Text(S.FitText(d.name,"SI.Title",cw),"SI.Title",S.Px(12),S.Px(76),S.C.accent)
+    S.Text(S.FitText(string.format("%s · %.2f кг",(S.CategoryNames[d.category] or d.category),d.weight),"SI.Small",cw),"SI.Small",S.Px(12),S.Px(101),S.C.muted)
+    local lines=S.Wrap(d.description,"SI.Small",cw)
+    for i=1,math.min(2,#lines) do S.Text(S.FitText(lines[i],"SI.Small",cw),"SI.Small",S.Px(12),S.Px(117+(i-1)*13),S.C.text) end
+    local y=S.Px(148)
+    S.DrawStatRow({label="Состояние",text=item.durability.."%",ratio=item.durability/100,token=item.durability<25 and "danger" or item.durability<50 and "warn" or "ok"},S.Px(12),y,cw)
+    y=y+S.Px(18)
+    local rows=S.ItemStats(item,d);local room=math.floor((S.Px(312)-y)/S.Px(18))
+    if #rows>room then room=room-1 end
+    for i,row in ipairs(rows) do
+        if i>room then S.Text("… ещё "..(#rows-room)..": наведите на предмет","SI.Small",S.Px(12),y,S.C.muted);break end
+        S.DrawStatRow(row,S.Px(12),y,cw);y=y+S.Px(18)
     end
-    S.Text("Износ / кол-во","SI.Small",S.Px(12),S.Px(244),S.C.muted)
-    S.Text(item.durability.."% / "..item.count,"SI.Small",S.Px(200),S.Px(244),S.C.text,TEXT_ALIGN_RIGHT)
 end
 function PANEL:Paint(w,h)
     local c=S.C;STALKER_STYLE.Frame("stalker_inv",w,h)
@@ -75,7 +85,7 @@ function PANEL:Paint(w,h)
     S.Text((STFW and STFW.State and STFW.Name(STFW.State.me.faction) or "ВОЛЬНЫЙ СТАЛКЕР").." / КПК","SI.Small",S.Px(28),S.Px(51),c.muted)
     local weight=S.Weight(S.Inventory);local col=weight>S.Config.MaxWeight and c.danger or c.accent
     S.Text(string.format("%.1f / %d kg",weight,S.Config.MaxWeight),"SI.Mono",S.Px(330),S.Px(23),col)
-    surface.SetDrawColor(c.background);surface.DrawRect(S.Px(330),S.Px(48),S.Px(260),S.Px(4))
+    S.SetColor(c.track);surface.DrawRect(S.Px(330),S.Px(48),S.Px(260),S.Px(4))
     surface.SetDrawColor(col);surface.DrawRect(S.Px(330),S.Px(48),S.Px(260)*math.min(1,weight/S.Config.MaxWeight),S.Px(4))
     local money=hook.Run("STALKER_INV_GetBalance",ply)
     if money==nil and ply.getDarkRPVar then money=ply:getDarkRPVar("money") end
@@ -123,16 +133,20 @@ function S.ComputeScale(width,height)
     return math.Clamp(math.min(ScrW()/1280,ScrH()/720)*S.CVScale:GetFloat(),.5,math.min((ScrW()-20)/width,(ScrH()-20)/height))
 end
 S.StashWidth=300;S.StashGap=12
--- stashID (строка) открывает рядом окно тайника; консольные команды передают сюда игрока — игнорируем.
+-- stashID (строка) открывает рядом окно своего тайника, таблица {intel=…} — чужого тайника по наводке.
+-- Консольные команды передают сюда игрока — игнорируем.
 function S.Open(stashID)
     if IsValid(S.Frame) then return end
     local ply=LocalPlayer()
     if not IsValid(ply) or not ply:Alive() or S.IsUnconscious(ply) then return end
-    local withStash=type(stashID)=="string" and stashID~=""
+    local foreign=type(stashID)=="table" and type(stashID.intel)=="string" and stashID or nil
+    local withStash=foreign~=nil or (type(stashID)=="string" and stashID~="")
     S.Scale=S.ComputeScale(withStash and 960+S.StashGap+S.StashWidth+20 or 980,620)
     S.CreateFonts();S.Frame=vgui.Create("STALKERInventory")
     if withStash then
-        local stash=vgui.Create("STALKERStash");stash:Setup(stashID);S.StashFrame=stash
+        local stash=vgui.Create("STALKERStash")
+        if foreign then stash:SetupForeign(foreign) else stash:Setup(stashID) end
+        S.StashFrame=stash
         local gap=S.Px(S.StashGap);local total=S.Frame:GetWide()+gap+stash:GetWide()
         local x,y=math.floor((ScrW()-total)/2),math.floor((ScrH()-S.Frame:GetTall())/2)
         S.Frame:SetPos(x,y);stash:SetPos(x+S.Frame:GetWide()+gap,y)
@@ -145,7 +159,7 @@ concommand.Add("+stalker_inv",S.Open)
 concommand.Add("-stalker_inv",S.Close)
 hook.Add("OnScreenSizeChanged","STALKER_INV.Resize",function()
     if not IsValid(S.Frame) then return end
-    local stash=IsValid(S.StashFrame) and S.StashFrame.StashID
+    local stash=IsValid(S.StashFrame) and (S.StashFrame.Foreign and S.Foreign or S.StashFrame.StashID)
     S.Close();S.Open(stash)
 end)
 hook.Add("STALKER_INV_Updated","STALKER_INV.Refresh",function()

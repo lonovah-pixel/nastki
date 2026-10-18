@@ -22,6 +22,12 @@ end
 -- Перенос между рюкзаком, экипировкой, хотбаром и окном тайника.
 function S.HandleDrop(src,dst)
     if src==dst then return end
+    -- Чужой тайник по наводке: только забирать в рюкзак.
+    if dst.Zone=="foreign" then if src.Zone~="foreign" then S.Notify("В чужой тайник ничего положить нельзя") end;return end
+    if src.Zone=="foreign" then
+        if dst.Zone=="grid" then S.LootAct(src.IntelID,src.Index) else S.Notify("Из чужого тайника предмет можно забрать только в рюкзак") end
+        return
+    end
     local fromStash,toStash=src.Zone=="stash",dst.Zone=="stash"
     if not fromStash and not toStash then S.SendAction("move",src.Zone,src.Index,dst.Zone,dst.Index);return end
     if fromStash and toStash then
@@ -62,7 +68,7 @@ end)
 hook.Add("PostRenderVGUI","STALKER_INV.Ghost",function()
     local d=S.Drag;if not d or not d.active then return end
     local size=S.Px(56);local x,y=gui.MouseX()-size/2,gui.MouseY()-size/2
-    surface.SetDrawColor(28,26,20,215);surface.DrawRect(x,y,size,size);S.DrawBrassFrame(x,y,size,size,true)
+    S.SetColor(S.C.background,215);surface.DrawRect(x,y,size,size);S.DrawBrassFrame(x,y,size,size,true)
     S.DrawItemIcon(d.item,x,y,size,size)
     if d.item.count>1 then S.Text("x"..d.item.count,"SI.Small",x+size-S.Px(4),y+S.Px(3),S.C.text,TEXT_ALIGN_RIGHT) end
 end)
