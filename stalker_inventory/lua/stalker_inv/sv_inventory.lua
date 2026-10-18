@@ -150,6 +150,8 @@ hook.Add("PlayerSpawn","STALKER_INV.Equip",function(ply)
     end)
 end)
 hook.Add("DoPlayerDeath","STALKER_INV.CaptureDeath",function(ply)
+    -- Накопленный износ брони попадает в то же сохранение, что и смерть.
+    if S.FlushWear then S.FlushWear(ply,true) end
     S.CaptureEquipment(ply)
     -- Нативный дроп SWEP не должен создавать копию предмета.
     for _,w in pairs(ply.StalkerWeapons or {}) do if IsValid(w) then w:Remove() end end
@@ -161,11 +163,16 @@ end)
 hook.Add("PlayerCanPickupWeapon","STALKER_INV.ManagedWeapon",function(ply,wep)
     if wep.StalkerManaged then return false end
 end)
-hook.Add("PlayerDisconnected","STALKER_INV.Save",function(ply) S.SaveInventory(ply) end)
-hook.Add("ShutDown","STALKER_INV.SaveAll",function() for _,ply in ipairs(player.GetAll()) do S.SaveInventory(ply) end end)
-timer.Create("STALKER_INV.Autosave",S.Config.Autosave,0,function()
-    for _,ply in ipairs(player.GetAll()) do if ply.StalkerInventory then S.SaveInventory(ply) end end
-end)
+local function finalSave(ply) if S.FlushWear then S.FlushWear(ply,true) end;S.SaveInventory(ply) end
+hook.Add("PlayerDisconnected","STALKER_INV.Save",finalSave)
+hook.Add("ShutDown","STALKER_INV.SaveAll",function() for _,ply in ipairs(player.GetAll()) do finalSave(ply) end end)
+-- Период берётся из настройки inv.autosave; при её смене таймер пересоздаётся.
+function S.StartAutosave()
+    timer.Create("STALKER_INV.Autosave",math.max(5,tonumber(S.Config.Autosave) or 30),0,function()
+        for _,ply in ipairs(player.GetAll()) do if ply.StalkerInventory then S.SaveInventory(ply) end end
+    end)
+end
+S.StartAutosave()
 -- Небольшая автономная модель потребностей. DarkRP hunger не изменяется.
 timer.Create("STALKER_INV.Needs",60,0,function()
     for _,ply in ipairs(player.GetAll()) do if ply:Alive() and ply.StalkerInventory and not ply.StalkerLoadError then

@@ -6,4 +6,6 @@ function ENT:SetupDataTables()
     self:NetworkVar("Entity",0,"StashOwner")
     self:NetworkVar("String",0,"StashID")
     self:NetworkVar("Int",0,"ItemCount")
+    -- Вместимость этого тайника (новые — StashSlots, старые — 20).
+    self:NetworkVar("Int",1,"Slots")
 end

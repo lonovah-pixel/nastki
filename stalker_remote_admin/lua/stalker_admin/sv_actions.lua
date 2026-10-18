@@ -112,9 +112,13 @@ end
 H.weapon=function(_,t,a) if not t:Alive() then return false,"Цель мертва" end;return IsValid(t:Give(a.value)) end
 H.item=function(_,t,a) return inventory(t,function(inv) return STALKER_INV.Insert(inv,a.value,a.amount) end) end
 H.radiation=function(_,t,a)
- if not STALKER_RAD then return false,"Система радиации не установлена" end
+ local R=STALKER_RAD;if not R then return false,"Система радиации не установлена" end
+ -- Без загруженного инвентаря доза хранится в самой радиации; с инвентарём — сохраняется сразу одним коммитом.
+ if not t.StalkerInventory and R.SetDose then
+  if R.SetDose(t,a.amount)==false then return false,"Доза недоступна" end;return true
+ end
  local ok,err=inventory(t,function(inv) inv.dose=a.amount;return inv end)
- if ok then t:SetNW2Float("stalker_dose",a.amount) end;return ok,err
+ if ok then if R.SetDose then R.SetDose(t,a.amount) else t:SetNW2Float("stalker_dose",a.amount) end end;return ok,err
 end
 H.money=function(_,t,a)
  if not t.addMoney or not t.getDarkRPVar then return false,"DarkRP недоступен" end
