@@ -56,7 +56,7 @@ end
 function CR.UseKit(ply,item,inv)
  local kit=CR.Kits[item.id]
  local target,slot=CR.KitTarget(inv,item.id)
- if not target then return false,"Нечего чинить: надетое "..kit.label.." в полном порядке" end
+ if not target then return false,"Нечего чинить: износа нет ("..kit.label..")" end
  -- То же, что STALKER_INV.RepairItem, но в транзакции использования предмета (см. комментарий в начале файла).
  target.durability=math.min(100,target.durability+CR.KitAmount(item.id))
  C.Notify(ply,CR.ItemName(target.id)..": состояние "..target.durability.."%","ok",4)

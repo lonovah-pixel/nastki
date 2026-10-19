@@ -155,6 +155,16 @@ function CR.BuildDetails(body,kind,sel)
   local r=d.Recipe;local can=r and CR.RecipeStatus(r,CR.ClientCounts())
   self:SetEnabled(job~=nil or can==true)
  end
+ -- Кнопка сама показывает прогресс работы: полоса вдоль нижнего края и оставшиеся секунды.
+ local basePaint=go.Paint
+ go.Paint=function(self,w,h)
+  if basePaint then basePaint(self,w,h) end
+  local job=CR.ClientJob();if not job then return end
+  local c=T.C.accent
+  surface.SetDrawColor(c.r,c.g,c.b,40);surface.DrawRect(1,1,(w-2)*job.ratio,h-2)
+  surface.SetDrawColor(c);surface.DrawRect(1,h-px(4),(w-2)*job.ratio,px(3))
+  U.Text(string.format("%.1f с",math.max(0,job.ends-CurTime())),"STALKER.Mono",w-px(10),h/2,"muted",TEXT_ALIGN_RIGHT,TEXT_ALIGN_CENTER)
+ end
  CR.GoButton=go
  d.Paint=function(self,w,h) CR.PaintDetails(self,w,h,kind) end
  return d
@@ -304,6 +314,39 @@ if C.RegisterPDATab then
  C.RegisterPDATab("craft",{title="Крафт",order=65,build=function(parent) CR.BuildPDATab(parent) end,
   badge=function() if CR.ClientJob() then return 1 end end})
 end
+
+--[[ Справочник КПК: разделы «Крафт» и «Готовка» заменяют общие заглушки КПК (тот же id). Блоки — функция,
+ поэтому числа (время, процент ремонта, срок костра) всегда совпадают с текущими настройками. ]]
+function CR.GuideBlocks(kind)
+ local cfg=CR.Config
+ local out={}
+ if kind=="cook" then
+  out[#out+1]="Мясо мутантов после разделки сырое — его готовят у огня. Разожгите «Походный костёр» из инвентаря («Использовать» — костёр "..
+   "встанет под прицелом) или найдите постоянный костёр. E по огню — окно готовки; стойте рядом, пока блюдо готовится."
+  out[#out+1]={"Походный костёр","горит "..math.floor(cfg.FireMinutes).." мин"}
+  if (tonumber(cfg.FireHeal) or 0)>0 then out[#out+1]={"Тепло огня","+"..cfg.FireHeal.." HP каждые "..cfg.FireHealInterval.." с рядом с костром","ok"} end
+  out[#out+1]={head="Блюда"}
+  for _,r in ipairs(CR.List("cook")) do out[#out+1]={r.name,CR.NeedText(r).." · "..CR.Seconds(CR.Duration(r))} end
+  out[#out+1]={note="Токсичное мясо годится только на «сомнительное мясо»: оно сытное, но добавляет дозу радиации."}
+  return out
+ end
+ out[#out+1]="Предметы собираются из деталей (разборка снаряжения в инвентаре) и трофеев разделки туш. Простые рецепты делаются где угодно, "..
+  "если в рюкзаке лежит набор инструментов; сложные — только у верстака (верстаки отмечены на карте КПК)."
+ out[#out+1]={"Мастерская","КПК → «Крафт», !craft или E по верстаку"}
+ out[#out+1]={"Время работы","2–6 с на изделие"..((tonumber(cfg.TimeMult) or 1)~=1 and (" × "..cfg.TimeMult) or "")}
+ out[#out+1]={"Ремкомплект брони","+"..CR.KitAmount("armor_kit").."% состояния костюму или шлему","ok"}
+ out[#out+1]={"Оружейный набор","+"..CR.KitAmount("weapon_kit").."% состояния оружию","ok"}
+ out[#out+1]={note="Работа прерывается, если отойти от верстака, сойти с места в поле или попасть под огонь. Ингредиенты списываются только в конце."}
+ return out
+end
+function CR.RegisterGuide()
+ local P=STALKER_PDA;if not P or type(P.AddGuide)~="function" then return false end
+ P.AddGuide("craft",{title="Крафт",subtitle="Детали, верстаки, ремонт",order=30,blocks=function() return CR.GuideBlocks("craft") end})
+ P.AddGuide("cooking",{title="Готовка",subtitle="Костры и блюда из мяса мутантов",order=40,blocks=function() return CR.GuideBlocks("cook") end})
+ return true
+end
+CR.RegisterGuide()
+hook.Add("STALKER_PDA_Ready","STALKER_CRAFT.Guide",function() CR.RegisterGuide() end)
 
 --[[ Сеть ]]
 net.Receive("stalker_craft.open",function(len)

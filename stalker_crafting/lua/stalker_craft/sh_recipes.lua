@@ -157,6 +157,21 @@ function CR.Possible(r,counts,limit)
  while n<limit and CR.Resolve(r,counts,n+1) do n=n+1 end
  return n
 end
+-- Результат рецепта одной строкой: «Бинт ×3».
+function CR.GiveText(r)
+ local parts={}
+ for _,g in ipairs(r.give) do parts[#parts+1]=itemName(g[1])..((g[2] or 1)>1 and (" ×"..g[2]) or "") end
+ return table.concat(parts,", ")
+end
+-- Состав рецепта одной строкой: «Детали ×4, Шкура мутанта».
+function CR.NeedText(r)
+ local parts={}
+ for _,ing in ipairs(r.need) do
+  local n=ing.group and (ing.n or 1) or (ing[2] or 1)
+  parts[#parts+1]=(ing.group and CR.Groups[ing.group].label or itemName(ing[1]))..(n>1 and (" ×"..n) or "")
+ end
+ return table.concat(parts,", ")
+end
 function CR.MissingText(rows)
  local parts={}
  for _,row in ipairs(rows or {}) do if not row.ok then parts[#parts+1]=row.label.." ("..row.have.."/"..row.need..")" end end

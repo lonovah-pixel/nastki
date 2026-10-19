@@ -34,8 +34,8 @@ CR.Food={}
 CR.PriceList={}
 for _,row in ipairs(CR.ItemDefs) do CR.PriceList[row[1]]=row[3];if row[4] then CR.Food[row[1]]=row[4] end end
 -- Ремкомплекты: какой слот и какая настройка.
-CR.Kits={armor_kit={slots={"armor","helmet"},config="RepairArmor",label="костюм или шлем"},
- weapon_kit={slots={"primary","secondary","pistol"},config="RepairWeapon",label="оружие"}}
+CR.Kits={armor_kit={slots={"armor","helmet"},config="RepairArmor",label="надетые костюм и шлем"},
+ weapon_kit={slots={"primary","secondary","pistol"},config="RepairWeapon",label="экипированное оружие"}}
 function CR.KitAmount(kitID) local kit=CR.Kits[kitID];return kit and math.Clamp(math.floor(tonumber(Cfg[kit.config]) or 0),1,100) or 0 end
 
 -- Числа в карточке предмета следуют за настройками (ремонт, множитель блюд, доза).

@@ -74,7 +74,7 @@ CR.AdminOps={
   local style=CR.FireStyles[a.style or ""] and a.style or "ring"
   local ok,err=addPlace(ply,"fires",style)
   if ok then ServerLog("[STALKER Crafting] "..who(ply).." поставил постоянный костёр\n") end
-  return ok,ok and (CR.FireStyles[style].." поставлен и сохранён") or err
+  return ok,ok and (style=="barrel" and "Бочка с огнём поставлена и сохранена" or "Костёр поставлен и сохранён") or err
  end,
  remove=function(ply,a)
   local kind=a.kind=="fires" and "fires" or a.kind=="benches" and "benches" or nil

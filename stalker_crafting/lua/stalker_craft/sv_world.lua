@@ -30,10 +30,11 @@ function CR.LoadWorld()
    CR.WorldBroken=nil
    world.seq=C.Int(data.seq,0,1e9) and data.seq or 0
    for _,kind in ipairs({"benches","fires"}) do
-    local limit=kind=="benches" and Cfg.MaxBenches or Cfg.MaxFires
-    for id,p in pairs(type(data[kind])=="table" and data[kind] or {}) do
+    -- Лимит из настроек действует только на новые места: сниженный лимит не стирает уже поставленные.
+    -- Жёсткий предел защищает от раздутого вручную файла.
+    for id,p in SortedPairs(type(data[kind])=="table" and data[kind] or {}) do
      local clean=cleanPlace(kind,p);id=tostring(id)
-     if clean and id:match("^[%w_]+$") and #id<=32 and table.Count(world[kind])<limit then clean.id=id;world[kind][id]=clean end
+     if clean and id:match("^[%w_]+$") and #id<=32 and table.Count(world[kind])<256 then clean.id=id;world[kind][id]=clean end
     end
    end
   end
@@ -89,7 +90,8 @@ function CR.SpawnPlaces()
 end
 function CR.RefreshMarkers()
  local MK=STALKER_MARKERS;if not MK then return end
- MK.Clear("stcraft.")
+ -- Временные метки «Показать места» (stcraft.show.*) не трогаем: они живут свои 2 минуты.
+ MK.Clear("stcraft.bench.");MK.Clear("stcraft.fire.")
  if not Cfg.Markers then return end
  for id,p in pairs(CR.World.benches) do MK.Set("stcraft.bench."..id,{pos=Vector(p.pos.x,p.pos.y,p.pos.z),kind="poi",label="Верстак",world=false,edge=false,map=true,range=2500}) end
  for id,p in pairs(CR.World.fires) do MK.Set("stcraft.fire."..id,{pos=Vector(p.pos.x,p.pos.y,p.pos.z),kind="poi",label=CR.FireStyles[p.style] or "Костёр",world=false,edge=false,map=true,range=2500}) end

@@ -51,6 +51,9 @@ if SET and SET.Bind then
  bind("toxic_dose","ToxicDose",{label="Доза радиации за сомнительное мясо",type="number",min=0,max=50,step=1,realm="shared",order=15,onChange=refreshItems})
  bind("markers","Markers",{label="Верстаки и постоянные костры на карте КПК",type="bool",realm="server",order=16,
   onChange=function() if SERVER and CR.RefreshMarkers then CR.RefreshMarkers() end end})
+ bind("max_benches","MaxBenches",{label="Лимит верстаков на карту",type="number",min=1,max=128,step=1,realm="server",order=17,
+  description="Уже поставленные места не удаляются: лимит действует на новые."})
+ bind("max_fires","MaxFires",{label="Лимит постоянных костров на карту",type="number",min=1,max=128,step=1,realm="server",order=18})
 end
 
 -- Общие помощники.

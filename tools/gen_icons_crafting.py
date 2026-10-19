@@ -25,7 +25,7 @@ FAT = (226, 196, 160, 255)
 def toolkit():
     """Потёртый кейс с ключом и отвёрткой."""
     i = Icon()
-    i.rect(76, 20, 116, 34, None, DARK, 4)
+    i.rect(76, 20, 116, 34, None, 4, DARK, 4)
     i.rect(30, 32, 162, 108, (96, 92, 70, 255), 6, OUT_LINE)
     i.rect(30, 32, 162, 46, shade((96, 92, 70, 255), .8), 6, OUT_LINE)
     for x in (44, 148):
@@ -92,8 +92,8 @@ def campfire_kit():
     """Таблетки сухого горючего, решётка и спички."""
     i = Icon()
     # Складная решётка.
-    i.rect(32, 30, 112, 86, None, OUT_LINE, 6)
-    i.rect(32, 30, 112, 86, None, METAL, 3)
+    i.rect(32, 30, 112, 86, None, 3, OUT_LINE, 6)
+    i.rect(32, 30, 112, 86, None, 3, METAL, 3)
     for x in range(44, 112, 12):
         i.line([(x, 32), (x, 84)], METAL, 2)
     # Упаковка горючего.

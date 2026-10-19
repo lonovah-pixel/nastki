@@ -7,12 +7,7 @@ local Cfg=CR.Config
 CR.Jobs=CR.Jobs or {}
 
 local function inv() return STALKER_INV end
-local function giveText(r)
- local parts={}
- for _,g in ipairs(r.give) do parts[#parts+1]=CR.ItemName(g[1])..(g[2]>1 and (" ×"..g[2]) or "") end
- return table.concat(parts,", ")
-end
-CR.GiveText=giveText
+local giveText=CR.GiveText
 
 -- Можно ли сейчас работать руками (без учёта рецепта).
 function CR.CanWork(ply)
