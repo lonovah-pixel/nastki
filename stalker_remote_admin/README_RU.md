@@ -41,6 +41,8 @@ sta_setrole 7656119XXXXXXXXXX owner
   игрока сохраняются). Недостающая группа (например, `moderator`) создаётся с наследованием
   `operator`.
 * Нельзя действовать на цель с равным или более высоким уровнем и назначать уровень не ниже своего.
+* Повторный бан заменяет прежний: бан, выданный более высоким уровнем, младший уровень не
+  перезапишет (как и не снимет).
 * При первом запуске с ULib уровни из старой таблицы `sta_roles` один раз переносятся в группы ULX
   (существующие записи ULX не перезаписываются).
 
@@ -62,7 +64,7 @@ announce, zone, economy, server, roles, settings, radiation, events, quests, cra
 | `ulx stalkeritem <игроки> <предмет> [кол-во]` | выдать предмет STALKER | loadout |
 | `ulx stalkerdose <игроки> <0–100>` | установить дозу радиации | zone |
 | `ulx stalkerfaction <игроки> <группировка>` | назначить группировку | zone |
-| `ulx emissionstart` / `ulx emissionstop` | запустить / остановить выброс | zone |
+| `ulx emissionstart` / `ulx emissionstop` | запустить / остановить выброс | events |
 | `ulx zonerebuild` | перестроить аномалии и артефакты | zone |
 | `ulx stalkerrestock` | пополнить склады торговцев | zone |
 | `ulx stalkerevent <id>` / `ulx stalkerstopevent <id>` | запустить / остановить событие | events |

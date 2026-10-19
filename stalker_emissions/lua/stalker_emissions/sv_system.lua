@@ -101,6 +101,9 @@ function E.IsSheltered(ent)
 end
 
 local lastDamage=CurTime()
+local function hurt(ent,damage)
+ local dmg=DamageInfo();dmg:SetDamage(damage);dmg:SetDamageType(DMG_RADIATION);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld());ent:TakeDamageInfo(dmg)
+end
 timer.Create("STEmission.Tick",.25,0,function()
  local state=E.State;local now=CurTime()
  -- Пробуждение по таймеру: тело убирается, игрок встаёт на его месте.
@@ -124,13 +127,20 @@ timer.Create("STEmission.Tick",.25,0,function()
    if E.Config.DamagePlayers and not sheltered and hook.Run("STEmissionCanDamage",p,phase.id)~=false then
     -- На пике незащищённый сталкер падает в обморок (один раз за выброс).
     if phase.id=="peak" then E.Knockout(p) end
-    local dmg=DamageInfo();dmg:SetDamage(damage);dmg:SetDamageType(DMG_RADIATION);dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld());p:TakeDamageInfo(dmg)
+    hurt(p,damage)
    end
+  end
+ end
+ -- Настройка «Выброс ранит NPC» (emission.damage_npcs): те же укрытия и хук STEmissionCanDamage, что у игроков.
+ if E.Config.DamageNPCs then
+  for _,n in ipairs(ents.FindByClass("npc_*")) do
+   if n:Health()>0 and not E.IsSheltered(n) and hook.Run("STEmissionCanDamage",n,phase.id)~=false then hurt(n,damage) end
   end
  end
 end)
 local unconscious=E.IsUnconscious
-for _,name in ipairs({"PlayerUse","PlayerSwitchWeapon","CanPlayerEnterVehicle","PlayerNoClip"}) do
+-- PlayerSwitchWeapon — в sh_config.lua: там запрет возвращает true и работает и в предсказании клиента.
+for _,name in ipairs({"PlayerUse","CanPlayerEnterVehicle","PlayerNoClip"}) do
  hook.Add(name,"STEmission.Unconscious",function(p) if unconscious(p) then return false end end)
 end
 -- Урон по лежащему телу получает сам игрок (тело — его «хитбокс» на время обморока).
@@ -184,6 +194,8 @@ end)
 concommand.Add("stem_start",function(p) if not IsValid(p) or E.IsAdmin(p) then E.Start() end end)
 concommand.Add("stem_stop",function(p) if not IsValid(p) or E.IsAdmin(p) then E.Stop(true) end end)
 hook.Add("PlayerInitialSpawn","STEmission.Sync",function(p) timer.Simple(2,function() if IsValid(p) then E.Send(p) end end) end)
+-- Медленный клиент теряет пакет таймера в 2 с (ещё «Starting Lua»): досылаем, когда ядро видит загруженный клиент.
+hook.Add("STALKER_PlayerReady","STEmission.Sync",function(p) if IsValid(p) then E.Send(p) end end)
 hook.Add("PostCleanupMap","STEmission.Cleanup",function()
  E.Stop(true);E.RoofCache=setmetatable({},{__mode="k"})
  for _,p in ipairs(player.GetAll()) do if p.StemHidden then E.Wake(p,false) end end

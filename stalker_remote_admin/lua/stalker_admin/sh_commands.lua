@@ -30,8 +30,9 @@ add("item","Выдать предмет STALKER","Снаряжение","loadout
 add("money","Изменить деньги DarkRP","Снаряжение","economy",nil,"money",true,true)
 add("faction","Назначить группировку","Обстановка","zone",nil,"faction",true,true)
 add("radiation","Установить дозу","Обстановка","zone",nil,"dose",false,true)
-add("emission_start","Запустить выброс","Обстановка","zone","server",nil,true)
-add("emission_stop","Остановить выброс","Обстановка","zone","server",nil,true)
+-- Выброс — право events, как в самом аддоне выбросов (stem_menu/stem_start): одно действие — одно право.
+add("emission_start","Запустить выброс","Обстановка","events","server",nil,true)
+add("emission_stop","Остановить выброс","Обстановка","events","server",nil,true)
 add("zone_rebuild","Перестроить Зону","Обстановка","zone","server",nil,true)
 add("restock","Пополнить склады торговцев","Обстановка","zone","server")
 add("event_start","Запустить событие","Обстановка","events","server","event",true)
