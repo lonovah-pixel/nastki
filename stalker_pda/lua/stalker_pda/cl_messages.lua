@@ -15,7 +15,7 @@ P.Names=P.Names or {}
 function P.Request(op,data) data=data or {};data.op=op;return C.Send("stalker_pda.req",nil,data) end
 function P.Viewing(sid) return P.IsOpen() and P.Current=="messages" and P.Chat==sid end
 function P.FindConversation(sid) for i,c in ipairs(P.Inbox) do if c.sid==sid then return c,i end end end
-local function preview(text) text=tostring(text or "");return utf8.sub and utf8.sub(text,1,90) or text:sub(1,90) end
+local function preview(text) return P.Head(text,90) end
 -- Переписка поднимается наверх списка с новым последним сообщением.
 local function touch(sid,name,text,t,mine,unreadDelta,system)
  local c,i=P.FindConversation(sid)

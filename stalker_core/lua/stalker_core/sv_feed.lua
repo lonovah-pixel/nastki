@@ -15,13 +15,14 @@ function C.News(text,kind,targets)
  hook.Run("STALKER_News",entry,targets)
  return entry
 end
-hook.Add("PlayerInitialSpawn","STALKER_Core.News",function(ply)
- timer.Simple(3,function()
-  if not IsValid(ply) then return end
-  local items={};for i=1,math.min(25,#C.NewsFeed) do items[i]=C.NewsFeed[i] end
-  C.Send("stalker_core.news",ply,{items=items,history=true})
- end)
-end)
+local function sendHistory(ply)
+ if not IsValid(ply) then return end
+ local items={};for i=1,math.min(25,#C.NewsFeed) do items[i]=C.NewsFeed[i] end
+ C.Send("stalker_core.news",ply,{items=items,history=true})
+end
+hook.Add("PlayerInitialSpawn","STALKER_Core.News",function(ply) timer.Simple(3,function() sendHistory(ply) end) end)
+-- Повтор для загрузившегося клиента (первый мог потеряться); клиент принимает историю один раз.
+hook.Add("STALKER_PlayerReady","STALKER_Core.News",sendHistory)
 -- Важные события сборки сразу попадают в ленту.
 hook.Add("STEmissionStarted","STALKER_Core.News",function() C.News("Внимание! Приближается выброс. Немедленно ищите укрытие.","emission") end)
 hook.Add("STEmissionFinished","STALKER_Core.News",function() C.News("Выброс закончился. Аномальные поля сместились.","emission") end)
@@ -69,14 +70,22 @@ hook.Add("STALKER_ZONE_ArtifactPicked","STALKER_Core.Stats",function(ply) C.AddS
 hook.Add("STEmissionFinished","STALKER_Core.Stats",function() for _,p in ipairs(player.GetHumans()) do if p:Alive() then C.AddStat(p,"emissions",1) end end end)
 
 -- Запрос: собственная статистика и топ по выбранному счётчику (по сохранённым профилям).
+-- Топ считается не чаще раза в StatTopTTL секунд на счётчик: разбор тысяч профилей на каждый запрос каждого игрока
+-- (и сохранение всех изменённых) — лишняя нагрузка, которую легко раскачать.
+C.StatTop=C.StatTop or {}
+C.StatTopTTL=30
 net.Receive("stalker_core.stats",function(len,ply)
  if not C.Rate(ply,"core.stats",.5,3) then return end
  local a=C.Read(len,300) or {}
  local out={mine=C.GetStats(ply),names=C.StatNames}
  local key=type(a.top)=="string" and C.StatNames[a.top] and a.top
- if key and C.StatsReady then
+ local cached=key and C.StatTop[key]
+ if cached and cached.t>CurTime() then out.top=cached.top
+ elseif key and C.StatsReady then
   for sid in pairs(dirty) do C.SaveStats(sid) end
-  local rows=sql.Query("SELECT sid,payload FROM stalker_stats LIMIT 2000") or {}
+  -- REPLACE переносит сохранённый профиль в конец таблицы: без ORDER BY первые 2000 строк — самые старые профили,
+  -- и на сервере с большой базой активные игроки в топ не попадали.
+  local rows=sql.Query("SELECT sid,payload FROM stalker_stats ORDER BY rowid DESC LIMIT 2000") or {}
   local list={}
   for _,row in ipairs(type(rows)=="table" and rows or {}) do
    local data=util.JSONToTable(row.payload or "")
@@ -88,6 +97,7 @@ net.Receive("stalker_core.stats",function(len,ply)
   table.sort(list,function(x,y) return x.value>y.value end)
   while #list>10 do table.remove(list) end
   out.top={key=key,list=list}
+  C.StatTop[key]={t=CurTime()+C.StatTopTTL,top=out.top}
  end
  C.Send("stalker_core.stats",ply,out)
 end)

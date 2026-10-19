@@ -72,8 +72,11 @@ if SERVER then
   local out={}
   for id,m in pairs(M.List) do
    if M.VisibleTo(m,ply) then
-    out[#out+1]={id=id,pos=m.pos,label=m.label,kind=m.kind,color=m.color,icon=m.icon,world=m.world,edge=m.edge,map=m.map,range=m.range,
+    local row={id=id,pos=m.pos,label=m.label,kind=m.kind,color=m.color,icon=m.icon,world=m.world,edge=m.edge,map=m.map,range=m.range,
      expires=m.expires and math.max(0,math.floor(m.expires-CurTime())) or nil,radius=m.radius}
+    -- hud=false — метка только на карте КПК (клиент не рисует её на экране); без поля — как раньше, рисуется.
+    if m.hud==false then row.hud=false end
+    out[#out+1]=row
    end
   end
   table.sort(out,function(a,b) return a.id<b.id end)
@@ -92,6 +95,8 @@ if SERVER then
   M.Dirty=false
  end)
  hook.Add("PlayerInitialSpawn","STALKER_Markers.Sync",function(ply) timer.Simple(2,function() if IsValid(ply) then M.SyncPlayer(ply,true) end end) end)
+ -- Снимок, потерянный загружающимся клиентом, иначе не повторится, пока метки не изменятся (M.Sent уже совпадает).
+ hook.Add("STALKER_PlayerReady","STALKER_Markers.Sync",function(ply) M.SyncPlayer(ply,true) end)
  hook.Add("PlayerDisconnected","STALKER_Markers.Sync",function(ply) M.Sent[ply]=nil end)
 else
  M.Server=M.Server or {}

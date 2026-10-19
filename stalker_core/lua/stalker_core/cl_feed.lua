@@ -18,9 +18,14 @@ end)
 net.Receive("stalker_core.news",function(len)
  local d=C.Read(len);if not d then return end
  local items=d.items or {}
+ -- История приходит при входе и ещё раз, когда клиент загрузился (первая могла потеряться): уже известные записи пропускаем.
+ local have={};if d.history then for _,e in ipairs(C.NewsFeed) do have[tostring(e.t).."|"..tostring(e.text)]=true end end
  for i=#items,1,-1 do
-  local e=items[i];table.insert(C.NewsFeed,1,e)
-  if not d.history and C.Config.NewsToast~=false then C.Toast(e.text,e.kind,7) end
+  local e=items[i]
+  if type(e)=="table" and not have[tostring(e.t).."|"..tostring(e.text)] then
+   table.insert(C.NewsFeed,1,e)
+   if not d.history and C.Config.NewsToast~=false then C.Toast(e.text,e.kind,7) end
+  end
  end
  while #C.NewsFeed>60 do table.remove(C.NewsFeed) end
  hook.Run("STALKER_NewsUpdated",C.NewsFeed)
