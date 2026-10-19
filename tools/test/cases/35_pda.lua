@@ -4,6 +4,9 @@
 local M,check,section=TEST.M,TEST.check,TEST.section
 local P,C,S,MK=STALKER_PDA,STALKER_CORE,STALKER_SETTINGS,STALKER_MARKERS
 local X=3500000
+-- Сценарий проверяет КПК сам по себе и подставляет свои заглушки знакомств и заданий; настоящие модули возвращаются в конце.
+local realSocial,realQuests=STALKER_SOCIAL,STALKER_QUESTS
+STALKER_SOCIAL=nil;STALKER_QUESTS=nil
 section("КПК: загрузка ("..M.Realm..")")
 check(P and P.Config and P.Config.MessageLength==300 and P.Config.MessageInterval==2,"STALKER_PDA загружен, лимиты по умолчанию")
 for _,id in ipairs({"pda.message_length","pda.message_days","pda.message_interval","pda.unread_limit","pda.history_limit","pda.message_toast",
@@ -444,3 +447,4 @@ else
  lp:SetNW2Bool("stfw_joined",false);lp:SetNW2String("stfw_faction","");lp:SetNW2Int("stfw_frank",0);lp:SetNW2Bool("stfw_leader",false)
  M.removePlayer(stranger);lp:SetPos(oldPos)
 end
+STALKER_SOCIAL,STALKER_QUESTS=realSocial,realQuests

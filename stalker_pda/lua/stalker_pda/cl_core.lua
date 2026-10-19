@@ -215,6 +215,8 @@ function P.Open(tab)
  P.BuildNav()
  P.Select(tab or P.LastTab or "summary")
  hook.Run("STALKER_PDA_Opened",f)
+ -- Общий сигнал для других аддонов (обучение заданий засчитывает открытие КПК).
+ hook.Run("STALKER_PDAOpened",P.Current)
  return f
 end
 C.PDAOpen=function(tab) return P.Open(tab) end
