@@ -68,6 +68,8 @@ function P.SendMessage(ply,to,text)
  if to==sid then return false,"Нельзя написать самому себе" end
  -- Мут ULX (ulx mute) запрещает и личные сообщения КПК, иначе он обходится через КПК.
  if ply:GetNWBool("ulx_muted",false)==true then return false,"Вам запрещено писать: администрация отключила вам чат" end
+ -- Без сознания КПК закрыт на клиенте, но запрос можно отправить и в обход окна — проверяем на сервере.
+ if C.Unconscious(ply) then return false,"Вы без сознания: КПК недоступен" end
  local body,err=P.CleanText(text)
  if not body then return false,P.TextErrors[err] or "Недопустимое сообщение" end
  local wait=(ply.StalkerPDANext or 0)-CurTime()
@@ -117,7 +119,7 @@ function P.Inbox(ply)
   local mine=r.sender==sid;local other=mine and r.recipient or r.sender
   local c=index[other]
   if not c and #list<80 then
-   c={sid=other,name=(mine and r.recipient_name or r.sender_name) or "",last=utf8.sub and utf8.sub(r.body or "",1,90) or (r.body or ""):sub(1,90),
+   c={sid=other,name=(mine and r.recipient_name or r.sender_name) or "",last=P.Head(r.body,90),
     t=tonumber(r.sent) or 0,mine=mine,unread=0,system=P.IsSystem(other) or nil}
    index[other]=c;list[#list+1]=c
   end
@@ -205,15 +207,22 @@ net.Receive("stalker_pda.req",function(len,ply)
 end)
 
 -- Вход: офлайн-сообщения ждут в КПК, игрок получает уведомление.
+local function announce(ply)
+ local sid=C.SID(ply);if not sid then return end
+ local n=P.UnreadCount(sid)
+ P.Push(ply,{kind="unread",n=n})
+ if n>0 and C.Notify then C.Notify(ply,"Непрочитанных сообщений в КПК: "..n..". Откройте КПК (F4) → «Сообщения».","info",9) end
+end
 hook.Add("PlayerInitialSpawn","STALKER_PDA.Messages",function(ply)
  local sid=C.SID(ply);if not sid then return end
  P.Seen[sid]=ply:Nick()
- timer.Simple(6,function()
-  if not IsValid(ply) then return end
-  local n=P.UnreadCount(sid)
-  P.Push(ply,{kind="unread",n=n})
-  if n>0 and C.Notify then C.Notify(ply,"Непрочитанных сообщений в КПК: "..n..". Откройте КПК (F4) → «Сообщения».","info",9) end
- end)
+ -- Клиент уже загрузился (STALKER_PlayerReady) — он получил или получит сообщение оттуда, второй раз не нужно.
+ timer.Simple(6,function() if IsValid(ply) and not ply.StalkerPDAAnnounced then announce(ply) end end)
+end)
+-- Таймер выше — запасной путь: медленный клиент к 6-й секунде ещё грузит Lua и теряет значок и уведомление.
+hook.Add("STALKER_PlayerReady","STALKER_PDA.Messages",function(ply)
+ if ply.StalkerPDAAnnounced then return end
+ ply.StalkerPDAAnnounced=true;announce(ply)
 end)
 hook.Add("PlayerDisconnected","STALKER_PDA.Messages",function(ply) local sid=C.SID(ply);if sid then P.Seen[sid]=ply:Nick();P.ShownNames[sid]=nil end end)
 

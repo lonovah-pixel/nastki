@@ -129,6 +129,8 @@ if SERVER then
  hook.Add("PlayerInitialSpawn","STALKER_Settings.Sync",function(ply)
   timer.Simple(1,function() if IsValid(ply) then C.Send("stalker_settings.sync",ply,{values=sharedValues()}) end end)
  end)
+ -- Повтор, когда клиент точно загрузился: иначе он до конца сеанса живёт со значениями по умолчанию.
+ hook.Add("STALKER_PlayerReady","STALKER_Settings.Sync",function(ply) C.Send("stalker_settings.sync",ply,{values=sharedValues()}) end)
  concommand.Add("stalker_setting",function(ply,_,args)
   if IsValid(ply) and not C.CanAdmin(ply,"settings") then return end
   local id,raw=args[1],args[2]
