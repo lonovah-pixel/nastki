@@ -96,6 +96,8 @@ hook.Add("OnNPCKilled","STALKER_EVENTS.Kill",function(npc,attacker)
  -- Во время гона участником считается любой охотник на мутантов, не только на мутантов события.
  if not ev and npc.StalkerMutant and E.Active.hunt then ev=E.Active.hunt end
  if not ev or not IsValid(attacker) or not attacker:IsPlayer() then return end
+ -- Боец рейда, убитый союзником-«Военным», — не участие в событии (как и не награда, см. E.RaidAlly).
+ if E.RaidAlly and E.RaidAlly(attacker,npc) then return end
  E.Participate(ev,attacker)
  ev.kills=(ev.kills or 0)+1
  if ev.def.onKill then pcall(ev.def.onKill,ev,npc,attacker) end

@@ -17,8 +17,10 @@ local function finite(v) return type(v)=="number" and v==v and v>-math.huge and 
 R.Finite=finite
 
 -- Позиция из Vector или таблицы {x,y,z}; координаты округляются до 0.1, чтобы файл не менялся при перечитывании.
+-- В GMod type(Vector) — "Vector" (includes/util.lua: isvector), а не "userdata": без этой ветки зону по прицелу не создать.
 function R.CleanPos(p)
- if type(p)~="table" and type(p)~="userdata" then return end
+ local t=type(p)
+ if t~="table" and t~="Vector" and t~="userdata" then return end
  local x,y,z=tonumber(p.x),tonumber(p.y),tonumber(p.z)
  local L=R.Limits.coord
  if not finite(x) or not finite(y) or not finite(z) or math.abs(x)>L or math.abs(y)>L or math.abs(z)>L then return end

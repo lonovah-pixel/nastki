@@ -83,7 +83,8 @@ end
 function E.UseBeacon(ply,ent)
  if not IsValid(ply) or not ply:IsPlayer() or not IsValid(ent) or ent.Collected then return end
  if ply:GetShootPos():DistToSqr(ent:WorldSpaceCenter())>150*150 then return end
- if C.SID(ply)~=ent.OwnerSID then C.Notify(ply,"Маячок «"..ent:GetLabel().."» принадлежит "..ent:GetOwnerName(),"info",3);return end
+ -- Имя владельца не называем: незнакомцу (STALKER Social) его знать неоткуда.
+ if C.SID(ply)~=ent.OwnerSID then C.Notify(ply,"Маячок «"..ent:GetLabel().."» чужой — забрать его может только владелец","info",3);return end
  local S=STALKER_INV
  if not S or not S.GiveItem then return end
  local ok,err=S.GiveItem(ply,E.BeaconItem,1)
