@@ -9,7 +9,8 @@ function F.Admission(p,id)
  if F.HasAdmission(d,id) then return true,nil,0 end
  local fee=F.JoinFee(id)
  if fee==0 then return true,nil,0 end
- if not p.getDarkRPVar or not p.addMoney then return false,"admission_required" end
+ -- Как DarkRP canAfford: до загрузки данных игрока списание взноса не сохраняется.
+ if not p.getDarkRPVar or not p.addMoney or p.DarkRPUnInitialized then return false,"admission_required" end
  local money=p:getDarkRPVar("money")
  if type(money)~="number" or money<fee then return false,"admission_required" end
  return true,nil,fee
@@ -20,6 +21,8 @@ function F.GrantAdmission(p,sid,revoke)
  for _,other in ipairs(player.GetHumans()) do if other:SteamID64()==sid then target=other end end
  if not IsValid(target) or target==p then return false,"denied" end
  local d=F.Load(target);if not d or (d.joined and d.faction==id) then return false,"denied" end
+ -- Отзывать нечего: без записи в SQLite и без уведомления цели (иначе лидер может засыпать игрока сообщениями).
+ if revoke and not (d.admissions and d.admissions[id]) then return false,"denied" end
  d=table.Copy(d);d.admissions=d.admissions or {}
  d.admissions[id]=not revoke and {leader=p:SteamID64(),expires=os.time()+F.Config.ApprovalLifetime} or nil
  if not F.Commit(table.Copy(F.World),{[sid]=d},"admission "..id.." "..sid) then return false,"storage" end
@@ -27,6 +30,7 @@ function F.GrantAdmission(p,sid,revoke)
  return true
 end
 concommand.Add("stfw_approve",function(p,_,args)
- if not IsValid(p) then return end
+ -- Каждый вызов — транзакция SQLite и уведомление цели: ограничиваем частоту, как у остальных команд.
+ if not IsValid(p) or not F.RateOK(p,"stfw.approve",1,3) then return end
  local ok,err=F.GrantAdmission(p,args[1],args[2]=="revoke");F.Notify(p,ok and "saved" or (err or "denied"))
 end)

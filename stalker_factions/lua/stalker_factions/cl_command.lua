@@ -280,15 +280,17 @@ F.CommandPages=pages
 F.CommandTabs={{id="overview",title="Обзор"},{id="roster",title="Состав"},{id="treasury",title="Казна",leader=true},{id="abilities",title="Способности"},
  {id="diplomacy",title="Дипломатия",leader=true},{id="admission",title="Вступление"}}
 -- Отпечаток данных меню: окно перестраивается только при реальных изменениях (не каждые 3 секунды).
+-- Точки нужны только «Обзору»: прогресс захвата меняется каждую секунду, и на других вкладках окно
+-- перестраивалось бы с каждым снимком, сбрасывая выбранного бойца или игрока в списках.
 local function hash(state)
  local c=state and state.command;if not c then return "" end
- return util.TableToJSON({c.roster,c.candidates,c.treasury,c.ledger,c.ban,c.approvals,c.credits,c.count,c.cap,c.role,state.proposals,state.points}) or ""
+ return util.TableToJSON({c.roster,c.candidates,c.treasury,c.ledger,c.ban,c.approvals,c.credits,c.count,c.cap,c.role,state.proposals,F.CommandCurrent=="overview" and state.points or nil}) or ""
 end
 function F.CommandTab(id)
  local f=F.CommandFrame;if not IsValid(f) then return end
  local s=F.State;local cmd=s and s.command;if not cmd then f:Remove();return end
  if not f.Tabs[id] then id="overview" end
- F.CommandCurrent=id
+ F.CommandCurrent=id;f.Hash=hash(s)
  for key,b in pairs(f.Tabs) do b.Active=key==id end
  f.Body:Clear()
  local ok,err=pcall(pages[id],f.Body,s,cmd)
@@ -312,7 +314,6 @@ function F.OpenCommand(tab)
  end
  local back=U.Button(bar,"Сеть группировок",function() F.Open() end);back:Dock(RIGHT);back:SetWide(px(170))
  f.Body=vgui.Create("DPanel",f);f.Body:Dock(FILL);f.Body.Paint=nil
- f.Hash=hash(F.State)
  F.CommandTab(tab or F.CommandCurrent or "overview")
  return f
 end

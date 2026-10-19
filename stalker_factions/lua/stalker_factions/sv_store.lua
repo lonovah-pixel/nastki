@@ -85,5 +85,8 @@ function F.PublishProfile(p,d)
  p:SetNW2Bool("stfw_leader",d.joined==true and F.World.leaders[d.faction]==p:SteamID64())
 end
 function F.Save() return F.Commit(table.Copy(F.World),F.Profiles) end
+-- Профиль одного игрока (вход и выход). F.Profiles хранит всех, кто когда-либо заходил: полная запись на каждом
+-- входе и выходе — тысячи INSERT и заметный рывок сервера. Остальные профили меняются только через F.Commit.
+function F.SaveProfile(sid) local d=F.Profiles[sid or ""];if not d then return false end;return F.Commit(table.Copy(F.World),{[sid]=d}) end
 hook.Add("ShutDown","STFW.Save",function() if F.DatabaseReady then F.Save() end end)
-hook.Add("PlayerDisconnected","STFW.SavePlayer",function(p) if F.Profiles[p:SteamID64()] then F.Save() end end)
+hook.Add("PlayerDisconnected","STFW.SavePlayer",function(p) local sid=p:SteamID64();if F.Profiles[sid or ""] then F.SaveProfile(sid) end end)

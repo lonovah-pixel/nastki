@@ -12,6 +12,11 @@ function F.Ledger(d,kind,amount,who,note)
  while #d.ledger>math.max(1,F.Config.LedgerSize) do table.remove(d.ledger,1) end
 end
 
+-- Кошелёк DarkRP загружен. До загрузки данных игрока (DarkRPUnInitialized) money=nil, и addMoney падает
+-- на сложении (DarkRP sv_money.lua): начисление после записи мира терялось бы вместе с остальными выплатами.
+function F.WalletReady(p)
+ return IsValid(p) and p.addMoney~=nil and p.getDarkRPVar~=nil and not p.DarkRPUnInitialized and type(p:getDarkRPVar("money"))=="number"
+end
 local function pays(pt,online)
  return pt.owner~="" and online[pt.owner] and not pt.contested and not pt.armed and (pt.progress or 0)==0
 end
@@ -36,7 +41,7 @@ function F.AccrueIncome(w)
  for _,p in ipairs(player.GetHumans()) do
   local d=F.Load(p)
   if d and d.joined and p:Alive() then online[d.faction]=true end
-  if d and d.faction=="loner" and (d.joined or F.Config.LonerIncomeFreeStalkers) then loners[#loners+1]=p end
+  if d and d.faction=="loner" and (d.joined or F.Config.LonerIncomeFreeStalkers) and F.WalletReady(p) then loners[#loners+1]=p end
  end
  local money,supply={},{}
  for _,pt in pairs(w.points) do
@@ -67,7 +72,7 @@ end
 function F.PayIncome(payouts)
  for _,row in ipairs(payouts or {}) do
   local p,share=row[1],row[2]
-  if IsValid(p) and p.addMoney then p:addMoney(share);F.Toast(p,"Доход точек одиночек: +"..F.Money(share),"ok",5) end
+  if F.WalletReady(p) then p:addMoney(share);F.Toast(p,"Доход точек одиночек: +"..F.Money(share),"ok",5) end
  end
 end
 -- Отдельный запуск дохода (админ-команда и проверки): сохраняет мир и выплачивает одиночкам.
@@ -84,7 +89,7 @@ local function amountOK(n) return type(n)=="number" and n==math.floor(n) and n>=
 function F.TreasuryWithdraw(p,amount)
  if not F.IsLeader(p) then return false,"unauthorized" end
  if not amountOK(amount) then return false,"amount_invalid" end
- if not p.addMoney then return false,"no_darkrp" end
+ if not F.WalletReady(p) then return false,"no_darkrp" end
  local id=F.Load(p).faction;local w=table.Copy(F.World);local d=F.Prog(w,id)
  if d.treasury<amount then return false,"treasury_low" end
  d.treasury=d.treasury-amount;F.Ledger(d,"withdraw",-amount,p:Nick(),"Снято лидером")
@@ -100,7 +105,7 @@ function F.TreasuryPayout(p,sid,amount)
  local target=F.ValidSID(sid) and F.OnlineBySID(sid)
  if not target then return false,"member_offline" end
  local d=F.Load(target);if not d or not d.joined or d.faction~=id then return false,"not_member" end
- if not target.addMoney then return false,"no_darkrp" end
+ if not F.WalletReady(target) then return false,"no_darkrp" end
  local w=table.Copy(F.World);local prog=F.Prog(w,id)
  if prog.treasury<amount then return false,"treasury_low" end
  prog.treasury=prog.treasury-amount;F.Ledger(prog,"payout",-amount,p:Nick(),"Выплата: "..target:Nick())
