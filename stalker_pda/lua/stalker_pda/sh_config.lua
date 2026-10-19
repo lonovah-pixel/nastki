@@ -55,6 +55,16 @@ function P.CleanText(text,limit)
  return text
 end
 P.TextErrors={empty="Пустое сообщение",long="Слишком длинное сообщение",encoding="Недопустимые символы в сообщении"}
+-- Первые n символов UTF-8 за один проход. utf8.sub GMod для каждого символа пересчитывает всю строку (O(n²)):
+-- список из 80 переписок с длинными сообщениями собирался на сервере больше полсекунды.
+function P.Head(text,n)
+ text=tostring(text or "");if #text<=n then return text end
+ local count=0
+ for at in text:gmatch("()[%z\1-\127\194-\244][\128-\191]*") do
+  count=count+1;if count>n then return text:sub(1,at-1) end
+ end
+ return text
+end
 
 -- SteamID64 собеседника или служебный отправитель «sys.<ключ>» (торговцы, задания, события).
 function P.ValidSID(sid) return type(sid)=="string" and #sid>=5 and #sid<=20 and sid:match("^%d+$")~=nil end

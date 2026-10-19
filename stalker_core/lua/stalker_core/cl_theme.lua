@@ -133,12 +133,19 @@ function U.Text(text,font,x,y,token,ax,ay)
  local col=type(token)=="table" and token or T.C[token or "text"] or T.C.text
  draw.SimpleText(text,font or "STALKER.Body",x,y,col,ax or TEXT_ALIGN_LEFT,ay or TEXT_ALIGN_TOP)
 end
+-- Fit зовут из Paint каждый кадр. utf8.sub GMod на каждый символ заново считает длину строки (O(n²) за вызов),
+-- а перебор длин с конца давал O(n³) — десятки мс на строку. Поэтому: границы символов UTF-8 — один проход,
+-- самая длинная подходящая часть — делением пополам (ширина текста растёт с длиной).
 function U.Fit(text,font,width)
  surface.SetFont(font);text=tostring(text)
  if surface.GetTextSize(text)<=width then return text end
- local n=utf8.len(text) or #text
- for i=n,1,-1 do local s=utf8.sub(text,1,i).."…";if surface.GetTextSize(s)<=width then return s end end
- return "…"
+ local ends={};for at,ch in text:gmatch("()([%z\1-\127\194-\244][\128-\191]*)") do ends[#ends+1]=at+#ch-1 end
+ local lo,hi=0,#ends
+ while lo<hi do
+  local mid=math.ceil((lo+hi)/2)
+  if surface.GetTextSize(text:sub(1,ends[mid]).."…")<=width then lo=mid else hi=mid-1 end
+ end
+ return lo>0 and text:sub(1,ends[lo]).."…" or "…"
 end
 function U.Wrap(text,font,width)
  surface.SetFont(font);local lines={};local line=""

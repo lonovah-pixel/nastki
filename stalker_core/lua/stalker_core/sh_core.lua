@@ -3,6 +3,7 @@ STALKER_CORE=STALKER_CORE or {}
 local C=STALKER_CORE
 C.Version="2.0.0"
 C.MaxPacket=63000
+C.MaxRaw=1000000
 
 function C.Int(v,lo,hi) return type(v)=="number" and v==v and v%1==0 and v>=lo and v<=hi end
 function C.Num(v,lo,hi) return type(v)=="number" and v==v and v>-math.huge and v<math.huge and v>=lo and v<=hi end
@@ -48,8 +49,10 @@ end
 function C.Read(len,maxBytes)
  local size=net.ReadUInt(16)
  if size<1 or size>(maxBytes or C.MaxPacket) or (len and len~=16+size*8) then return end
- local raw=util.Decompress(net.ReadData(size) or "")
- if not raw or #raw>1000000 then return end
+ -- Предел распаковки передаём самому util.Decompress: LZMA-«бомба» в 8 КБ разворачивается в десятки мегабайт,
+ -- и проверка длины после распаковки уже не спасает сервер от зависания.
+ local raw=util.Decompress(net.ReadData(size) or "",C.MaxRaw)
+ if not raw or #raw>C.MaxRaw then return end
  local t=util.JSONToTable(raw);if type(t)=="table" then return t end
 end
 
@@ -91,4 +94,12 @@ if SERVER then
   if type(text)~="string" or text=="" then return end
   return C.Send("stalker_core.notify",target,{text=text,kind=kind or "info",seconds=seconds or 6})
  end
+ -- Клиент загрузился: в PlayerInitialSpawn он ещё на экране «Starting Lua», и сообщения, отправленные по таймеру
+ -- через 1–3 с, медленный клиент теряет. Первая настоящая (не повторённая сервером) команда ввода приходит, когда
+ -- Lua клиента уже работает: тогда один раз зовём STALKER_PlayerReady(ply) — ядро и аддоны досылают начальные данные.
+ hook.Add("StartCommand","STALKER_Core.Ready",function(ply,cmd)
+  if ply.StalkerReady or not IsValid(ply) or ply:IsBot() or (cmd.IsForced and cmd:IsForced()) then return end
+  ply.StalkerReady=true
+  hook.Run("STALKER_PlayerReady",ply)
+ end)
 end

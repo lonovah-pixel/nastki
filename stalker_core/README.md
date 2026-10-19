@@ -33,7 +33,8 @@ STALKER_SETTINGS.Register("id", {category, label, description, type="number|bool
 
 ## Метки (`STALKER_MARKERS`)
 
-Сервер: `Set(id, {pos, label, kind, color, icon, world, edge, map, range, visible, expires, owner, radius})`,
+Сервер: `Set(id, {pos, label, kind, color, icon, world, edge, map, hud, range, visible, expires, owner, radius})`
+(`hud=false` — только на карте КПК, без значка на экране),
 `Remove(id)`, `Get(id)`, `Clear(prefix)`, `VisibleTo(marker, ply)`.
 `visible`: `"all"` или `{players={[sid]=true}, faction="duty", factions={duty=true}, admins=true, check=function(ply) end}`.
 Типы (`kind`): `poi`, `flag`, `beacon`, `cargo`, `event`, `quest`, `stash`, `rally`, `enemy`, `trader`.
@@ -63,3 +64,6 @@ STALKER_SETTINGS.Register("id", {category, label, description, type="number|bool
 `STALKER_CORE.Send(name, target, tbl)` / `Read(len, maxBytes)` — сжатый JSON по сети; `Rate(ply, key, perSecond, burst)`;
 `CanAdmin(ply, permission)` («Комендант» → ULX `stalker_<право>` → суперадмин); `SID(ply)`; `PlayerBySID(sid)`;
 `Faction(ply)`, `FactionName(id)`, `FactionColor(id)`; `Unconscious(ply)`; `Meters(units)`.
+
+Хук сервера `STALKER_PlayerReady(ply)` — клиент загрузил Lua (первая настоящая команда ввода): досылайте сюда
+начальные данные. Сообщения из `PlayerInitialSpawn` (даже по таймеру в 1–3 с) медленный клиент теряет.
