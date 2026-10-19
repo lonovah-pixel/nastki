@@ -66,6 +66,8 @@ function S.GiveItem(ply,id,count)
     S.Commit(ply,inv);return true
 end
 function S.HandleAction(ply,action,zone,index,to,ti)
+    -- Накопленный износ — до перемещения: иначе костюм, снятый до таймера износа, его теряет (снял-надел — и износа нет).
+    if S.FlushWear then S.FlushWear(ply,true) end
     S.CaptureEquipment(ply)
     local inv=table.Copy(ply.StalkerInventory)
     local item,realZone,realIndex
@@ -162,6 +164,17 @@ hook.Add("PlayerDroppedWeapon","STALKER_INV.NoDuplicate",function(ply,wep)
 end)
 hook.Add("PlayerCanPickupWeapon","STALKER_INV.ManagedWeapon",function(ply,wep)
     if wep.StalkerManaged then return false end
+end)
+-- DarkRP /drop и выпадение при смерти (dropDRPWeapon) создают spawned_weapon из оружия в руках, а предмет остаётся
+-- надетым и выдаётся снова — бесконечный дубликат. Оружие инвентаря выбрасывается только из инвентаря.
+hook.Add("canDropWeapon","STALKER_INV.ManagedWeapon",function(ply,wep)
+    if IsValid(wep) and wep.StalkerManaged then return false end
+end)
+-- Смена профессии DarkRP без возрождения (norespawn; вступление в группировку) после OnPlayerChangedTeam снимает всё
+-- оружие: магазины запоминаем сейчас, оружие инвентаря выдаём заново в следующем тике.
+hook.Add("OnPlayerChangedTeam","STALKER_INV.Reequip",function(ply)
+    S.CaptureEquipment(ply)
+    timer.Simple(0,function() if IsValid(ply) and ply:Alive() then S.ApplyEquipment(ply) end end)
 end)
 local function finalSave(ply) if S.FlushWear then S.FlushWear(ply,true) end;S.SaveInventory(ply) end
 hook.Add("PlayerDisconnected","STALKER_INV.Save",finalSave)

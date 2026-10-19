@@ -324,6 +324,18 @@ hook.Add("STALKER_ZONE_BagDropped","STALKER_INV.StashIntel",function(victim,bag)
  if intel and IsValid(bag) then bag.StashIntel=intel;victim.StalkerIntelPending=nil end
 end)
 hook.Add("PlayerSpawn","STALKER_INV.StashIntel",function(p) p.StalkerIntelPending=nil;p.StalkerLooting=nil end)
+-- Владельцу — сообщение о тайниках, рассекреченных в его отсутствие (один раз: notified=1).
+local function announceOwner(p)
+ local owner=sidOf(p);if not owner or not S.IntelReady then return end
+ local n=tonumber(sql.QueryValue("SELECT COUNT(*) FROM stalker_stash_intel WHERE owner="..Q(owner).." AND notified=0 AND expires>"..os.time())) or 0
+ if n<=0 then return end
+ sql.Query("UPDATE stalker_stash_intel SET notified=1 WHERE owner="..Q(owner))
+ local text=n==1 and "Ваш тайник рассекречен: пока вас не было, кто-то получил его координаты"
+  or ("Ваши тайники рассекречены: пока вас не было, выдано наводок — "..n)
+ notify(p,text,"danger",12)
+ -- Клиент, ещё грузящий Lua, сообщение теряет, а notified уже 1: повторим его по STALKER_PlayerReady.
+ if not p.StalkerIntelReady then p.StalkerIntelNotice=text end
+end
 -- Вход: метки своих наводок; владельцу — сообщение о тайниках, рассекреченных в его отсутствие.
 hook.Add("PlayerInitialSpawn","STALKER_INV.StashIntel",function(p)
  timer.Simple(3,function()
@@ -332,14 +344,14 @@ hook.Add("PlayerInitialSpawn","STALKER_INV.StashIntel",function(p)
   for _,intel in pairs(list) do setMarker(holder,intel) end
   S.SendIntel(p)
  end)
- timer.Simple(8,function()
-  local owner=sidOf(p);if not owner or not S.IntelReady then return end
-  local n=tonumber(sql.QueryValue("SELECT COUNT(*) FROM stalker_stash_intel WHERE owner="..Q(owner).." AND notified=0 AND expires>"..os.time())) or 0
-  if n<=0 then return end
-  sql.Query("UPDATE stalker_stash_intel SET notified=1 WHERE owner="..Q(owner))
-  notify(p,n==1 and "Ваш тайник рассекречен: пока вас не было, кто-то получил его координаты"
-   or ("Ваши тайники рассекречены: пока вас не было, выдано наводок — "..n),"danger",12)
- end)
+ timer.Simple(8,function() if IsValid(p) then announceOwner(p) end end)
+end)
+-- Клиент загрузил Lua: список наводок и уведомление из таймеров входа медленный клиент потерял — досылаем.
+hook.Add("STALKER_PlayerReady","STALKER_INV.StashIntel",function(p)
+ p.StalkerIntelReady=true
+ S.SendIntel(p)
+ if p.StalkerIntelNotice then notify(p,p.StalkerIntelNotice,"danger",12);p.StalkerIntelNotice=nil end
+ announceOwner(p)
 end)
 hook.Add("PlayerDisconnected","STALKER_INV.StashIntel",function(p)
  local id=sidOf(p);local list=id and S.IntelHeld[id]
