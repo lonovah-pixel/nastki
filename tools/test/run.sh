@@ -6,7 +6,7 @@ LUAJIT="${LUAJIT:-luajit}"
 status=0
 # Синтаксис всех Lua-файлов сборки (ULX/ULib — сторонние, используют расширения GLua).
 export LIST="$(mktemp)"
-find "$ROOT" -path "$ROOT/.claude" -prune -o -path "$ROOT/.git" -prune -o -path "$ROOT/ulx" -prune -o -path "$ROOT/ulib" -prune -o -path "$ROOT/tools" -prune -o -name '*.lua' -print > "$LIST"
+find "$ROOT" -path "$ROOT/.claude" -prune -o -path "$ROOT/.git" -prune -o -path "$ROOT/dist" -prune -o -path "$ROOT/ulx" -prune -o -path "$ROOT/ulib" -prune -o -path "$ROOT/tools" -prune -o -name '*.lua' -print > "$LIST"
 "$LUAJIT" -e '
 local bad,n=0,0
 for path in io.lines(os.getenv("LIST")) do n=n+1;local f,err=loadfile(path);if not f then print("SYNTAX "..err);bad=bad+1 end end
