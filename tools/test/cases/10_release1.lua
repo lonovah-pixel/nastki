@@ -157,7 +157,7 @@ if SERVER then
  section("Вайп знает о новых данных")
  local wipe=io.open(os.getenv("GMOD_ROOT").."/stalker_survival/lua/autorun/000_stalker_wipe.lua"):read("*a")
  check(wipe:find('"stz_ammo"',1,true) and wipe:find('"stalker_zone"',1,true),"stz_ammo и data/stalker_zone в списке вайпа")
- for _,name in ipairs({"stalker_stash_intel","stalker_stats","stalker_events"}) do check(wipe:find('"'..name..'"',1,true),name.." в списке вайпа") end
+ for _,name in ipairs({"stalker_stash_intel","stalker_stats","stalker_events","stalker_pda_messages","stalker_social_known","stalker_social_patches","stalker_quests"}) do check(wipe:find('"'..name..'"',1,true),name.." в списке вайпа") end
 end
 
 if CLIENT then
