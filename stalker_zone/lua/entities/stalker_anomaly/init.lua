@@ -49,7 +49,11 @@ function ENT:Think()
  local ok,err=pcall(self.Tick,self)
  if not ok then
   STALKER_ZONE.AnomalyVictim=nil
-  if (self.NextError or 0)<CurTime() then self.NextError=CurTime()+30;ErrorNoHalt("[STALKER Zone] Аномалия "..tostring(self:GetKind())..": "..tostring(err).."\n") end
+  if (self.NextError or 0)<CurTime() then
+   self.NextError=CurTime()+30;ErrorNoHalt("[STALKER Zone] Аномалия "..tostring(self:GetKind())..": "..tostring(err).."\n")
+   -- Последние ошибки видны администратору: stz_status и «Комендант» → «Зона».
+   if STALKER_ZONE.ReportError then STALKER_ZONE.ReportError("Аномалия «"..tostring(self:GetKind()).."»",err) end
+  end
  end
  self:NextThink(CurTime()+(self.Sleep and .3 or .1))
  return true
@@ -94,7 +98,7 @@ function ENT:Tick()
   -- Внешнее кольцо затягивает, ядро разрывает и отбрасывает.
   for _,e in ipairs(near) do
    local dir=center-e:WorldSpaceCenter();local d=dir:Length();dir:Normalize()
-   local k=1-math.Clamp((d-cfg.radius)/(cfg.pull-cfg.radius),0,1)
+   local k=1-math.Clamp((d-cfg.radius)/math.max(1,cfg.pull-cfg.radius),0,1)
    if e:IsPlayer() then e:SetVelocity(dir*cfg.pullForce*k)
    else local phys=physicsProp(e);if phys then phys:ApplyForceCenter(dir*cfg.pullForce*k*phys:GetMass()*.5) end end
   end

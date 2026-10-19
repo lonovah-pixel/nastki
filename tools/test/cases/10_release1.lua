@@ -210,7 +210,7 @@ if SERVER then
  for i=1,6 do models["models/player/Group01/female_0"..i..".mdl"]=true;models["models/player/Group03/female_0"..i..".mdl"]=true;models["models/player/Group03m/female_0"..i..".mdl"]=true end
  for _,i in ipairs({2,4,6,8}) do models["models/player/Group02/male_0"..i..".mdl"]=true end
  for i=1,4 do models["models/player/hostage/hostage_0"..i..".mdl"]=true end
- check(#jobs>=14,"профессии созданы: "..#jobs)
+ check(#jobs>=12,"профессии созданы: "..#jobs)
  local commands={}
  for _,job in ipairs(jobs) do
   check(cats[job.category],"категория профессии «"..job.name.."»: "..tostring(job.category))
@@ -227,6 +227,11 @@ if SERVER then
  check(GAMEMODE.DefaultTeam==TEAM_STALKER and TEAM_STALKER,"профессия по умолчанию — Сталкер")
  check(GM.Config.currency=="₽" and GM.Config.startingmoney==3000,"валюта и стартовые деньги")
  check(DarkRP.disabledDefaults.jobs and DarkRP.disabledDefaults.jobs.citizen==true and DarkRP.disabledDefaults.modules.fadmin==true,"стандартные профессии и FAdmin отключены")
+ -- F4 DarkRP вырезан: клавиша F4 — КПК, профессии выдаёт группировка (вступление у вербовщика или по приглашению лидера).
+ check(DarkRP.disabledDefaults.modules.f4menu==true,"меню F4 DarkRP отключено")
+ check(not commands.zonemedic and not commands.guide,"профессий «Полевой медик» и «Проводник» нет")
+ local free=0;for _,job in ipairs(jobs) do if not job.stalkerFaction and job.admin==0 then free=free+1 end end
+ check(free==1 and commands.stalker,"вне группировок только «Сталкер» (и служебная): "..free)
  check(langs.ru and langs.ru.become_job,"русский язык DarkRP загружен")
  check(chat.ru and chat.ru.g,"русские описания чат-команд")
 end

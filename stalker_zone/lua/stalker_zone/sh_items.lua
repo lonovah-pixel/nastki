@@ -108,10 +108,16 @@ function Z.RegisterItems()
  if S.Items.antirad then S.Items.antirad.icon=icon("antirad") end
 
  -- Стартовый набор: инвентарь выдаёт его только новому (пустому) сохранению.
- S.Config.Starter=table.Copy(Z.Config.Starter)
+ Z.ApplyStarter()
  S.Config.DarkRP.DisableStarter=false
  Z.ItemsReady=true
  return true
+end
+
+-- Стартовый набор можно выключить настройкой zone.starter: инвентарь получает пустой список.
+function Z.ApplyStarter()
+ local S=STALKER_INV;if not S or type(S.Config)~="table" then return end
+ S.Config.Starter=Z.Config.StarterEnabled~=false and table.Copy(Z.Config.Starter) or {}
 end
 
 Z.RegisterItems()

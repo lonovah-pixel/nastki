@@ -17,6 +17,8 @@ You can copy the medic from DarkRP and paste it in darkrp_config/jobs.lua
 STALKER RP: стандартные профессии, принтеры, лаборатории, оружейные поставки,
 патроны и еда DarkRP отключены. Снаряжение, еда и патроны продаются торговцами
 Зоны через STALKER Inventory, профессии группировок описаны в jobs.lua.
+Меню F4 DarkRP отключено: клавиша F4 открывает КПК (stalker_pda), а профессию
+группировки игрок получает при вступлении (модуль darkrp_modules/stalker_jobs).
 FAdmin отключён: администрирование — ULX и панель «Комендант».
 Hungermod отключён: голод и жажда ведутся инвентарём STALKER.
 ---------------------------------------------------------------------------]]
@@ -34,7 +36,7 @@ DarkRP.disabledDefaults["modules"] = {
     ["events"]           = false,
     ["fpp"]              = false,
     ["f1menu"]           = false,
-    ["f4menu"]           = false,
+    ["f4menu"]           = true, -- STALKER: F4 — КПК (stalker_pda); профессии выдаёт группировка
     ["hitmenu"]          = true,
     ["hud"]              = false,
     ["hungermod"]        = true,

@@ -36,57 +36,47 @@ hook.Add("Think","STALKER_ZONE.DetectorBeep",function()
  local lp=LocalPlayer();if IsValid(lp) then lp:EmitSound("buttons/blip1.wav",55,math.floor(150-k*60),math.Clamp(volume:GetFloat(),0,1)) end
 end)
 
-local scale=1
-local function px(n) return math.Round(n*scale) end
-local function fonts()
- scale=math.Clamp(ScrH()/900,.85,1.8)
- surface.CreateFont("STZ.Det",{font="Tahoma",size=px(13),weight=700,extended=true})
- surface.CreateFont("STZ.DetSmall",{font="Consolas",size=px(11),weight=500,extended=true})
-end
-fonts();hook.Add("OnScreenSizeChanged","STALKER_ZONE.DetectorFonts",fonts)
-
-local function panel(x,y,w,h,active)
- if STALKER_STYLE and STALKER_STYLE.Panel then STALKER_STYLE.Panel("stalker_inv",x,y,w,h,active)
- else surface.SetDrawColor(25,27,22,230);surface.DrawRect(x,y,w,h);surface.SetDrawColor(91,91,71);surface.DrawOutlinedRect(x,y,w,h,1) end
-end
-local text,muted,accent,green=Color(217,207,176),Color(138,143,115),Color(200,169,81),Color(112,158,91)
+-- Оформление — тема STALKER_THEME (цвета, шрифты и масштаб ядра).
+local function px(n) local T=STALKER_THEME;return T and T.Px and T.Px(n) or math.Round(n) end
+local function col(token) local T=STALKER_THEME;return T and T.C and T.C[token] or color_white end
 
 local function menuOpen()
  return (STALKER_INV and IsValid(STALKER_INV.Frame)) or (STALKER_NPC and IsValid(STALKER_NPC.Window))
+  or (STALKER_PDA and STALKER_PDA.IsOpen and STALKER_PDA.IsOpen())
 end
 
 hook.Add("HUDPaint","STALKER_ZONE.Detector",function()
- local d=Z.LocalDetector;local lp=LocalPlayer()
- if not d or not hudCvar:GetBool() or not IsValid(lp) or not lp:Alive() or menuOpen() then return end
+ local d=Z.LocalDetector;local lp=LocalPlayer();local U=STALKER_STYLE
+ if not d or not hudCvar:GetBool() or not IsValid(lp) or not lp:Alive() or menuOpen() or not U or not U.Panel then return end
  if not nearest or not IsValid(nearest.ent) then return end
- local w,h=px(230),px(66);local x,y=ScrW()/2-w/2,ScrH()-h-px(30)
- local strength=1-math.Clamp(nearest.dist/d.range,0,1)
- panel(x,y,w,h,strength>.75)
- draw.SimpleText("ДЕТЕКТОР "..(names[Z.LocalDetectorID] or ""),"STZ.Det",x+px(10),y+px(7),accent)
- draw.SimpleText(#signals>1 and ("СИГНАЛОВ: "..#signals) or "СИГНАЛ","STZ.DetSmall",x+w-px(10),y+px(9),muted,TEXT_ALIGN_RIGHT)
- local bx,by,bw,bh=x+px(10),y+px(30),w-px(20)-(d.mode~="signal" and px(36) or 0),px(8)
- if STALKER_STYLE and STALKER_STYLE.Bar then STALKER_STYLE.Bar(bx,by,bw,bh,strength,green)
- else surface.SetDrawColor(9,12,8);surface.DrawRect(bx,by,bw,bh);surface.SetDrawColor(green);surface.DrawRect(bx,by,bw*strength,bh) end
+ local w,h=px(240),px(68);local x,y=ScrW()/2-w/2,ScrH()-h-px(30)
+ local strength=1-math.Clamp(nearest.dist/math.max(1,d.range),0,1)
+ U.Panel("",x,y,w,h,strength>.75)
+ U.Text("ДЕТЕКТОР "..(names[Z.LocalDetectorID] or ""),"STALKER.Head",x+px(10),y+px(6),"accent")
+ U.Text(#signals>1 and ("СИГНАЛОВ: "..#signals) or "СИГНАЛ","STALKER.Mono",x+w-px(10),y+px(9),"muted",TEXT_ALIGN_RIGHT)
+ local bx,by,bw,bh=x+px(10),y+px(31),w-px(20)-(d.mode~="signal" and px(36) or 0),px(8)
+ U.Bar(bx,by,bw,bh,strength,col(strength>.85 and "ok" or strength>.5 and "accent2" or "accent"))
  local word=strength>.85 and "АРТЕФАКТ РЯДОМ" or strength>.5 and "СИЛЬНЫЙ" or strength>.2 and "СРЕДНИЙ" or "СЛАБЫЙ"
- draw.SimpleText(word..(d.mode=="exact" and string.format("  %.0f м",nearest.dist*.019) or ""),"STZ.DetSmall",bx,y+px(46),text)
+ U.Text(word..(d.mode=="exact" and string.format("  %.0f м",nearest.dist*.019) or ""),"STALKER.Mono",bx,y+px(46),strength>.85 and "ok" or "text")
  if d.mode=="arrow" or d.mode=="exact" then
   -- Стрелка: угол на артефакт относительно направления взгляда.
   local dir=nearest.ent:GetPos()-lp:GetPos()
   local yaw=math.rad(math.NormalizeAngle(dir:Angle().y-lp:EyeAngles().y))
-  local cx,cy,r=x+w-px(24),y+px(38),px(13)
-  local tip=Vector(cx-math.sin(yaw)*r,cy-math.cos(yaw)*r,0)
-  local left=Vector(cx-math.sin(yaw+2.5)*r*.7,cy-math.cos(yaw+2.5)*r*.7,0)
-  local right=Vector(cx-math.sin(yaw-2.5)*r*.7,cy-math.cos(yaw-2.5)*r*.7,0)
-  draw.NoTexture();surface.SetDrawColor(accent)
-  surface.DrawPoly({{x=tip.x,y=tip.y},{x=right.x,y=right.y},{x=left.x,y=left.y}})
+  local cx,cy,r=x+w-px(24),y+px(39),px(13)
+  local tip={x=cx-math.sin(yaw)*r,y=cy-math.cos(yaw)*r}
+  local left={x=cx-math.sin(yaw+2.5)*r*.7,y=cy-math.cos(yaw+2.5)*r*.7}
+  local right={x=cx-math.sin(yaw-2.5)*r*.7,y=cy-math.cos(yaw-2.5)*r*.7}
+  draw.NoTexture();surface.SetDrawColor(col("accent"))
+  surface.DrawPoly({tip,right,left})
  end
  if d.mode=="exact" then
+  local ok=col("ok")
   for _,row in ipairs(signals) do
    if IsValid(row.ent) then
     local s=(row.ent:GetPos()+Vector(0,0,14)):ToScreen()
     if s.visible then
-     surface.SetDrawColor(green);surface.DrawOutlinedRect(s.x-px(6),s.y-px(6),px(12),px(12),1)
-     draw.SimpleText(string.format("%.0f м",row.dist*.019),"STZ.DetSmall",s.x,s.y+px(8),green,TEXT_ALIGN_CENTER)
+     surface.SetDrawColor(ok);surface.DrawOutlinedRect(s.x-px(6),s.y-px(6),px(12),px(12),1)
+     draw.SimpleText(string.format("%.0f м",row.dist*.019),"STALKER.Mono",s.x,s.y+px(8),ok,TEXT_ALIGN_CENTER)
     end
    end
   end

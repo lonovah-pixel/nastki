@@ -7,6 +7,13 @@ file.CreateDir("stalker_zone")
 local path="stalker_zone/"..game.GetMap()..".json"
 
 function Z.Log(text) print("[STALKER Zone] "..text) end
+-- Последние ошибки Зоны (аномалии, файл карты, сохранение) для stz_status и «Коменданта».
+Z.Errors=Z.Errors or {}
+function Z.ReportError(source,err)
+ local list=Z.Errors
+ list[#list+1]={t=os.time(),source=tostring(source),text=tostring(err):sub(1,300)}
+ while #list>20 do table.remove(list,1) end
+end
 
 function Z.LoadWorld()
  local raw=file.Read(path,"DATA")
@@ -14,7 +21,8 @@ function Z.LoadWorld()
  local data=util.JSONToTable(raw)
  if type(data)~="table" or type(data.fields)~="table" or type(data.zones)~="table" then
   -- Повреждённый файл не перезаписываем: редактор блокируется до ручного восстановления.
-  Z.WorldReady=false;ErrorNoHalt("[STALKER Zone] Повреждён "..path.."; редактор заблокирован\n");return
+  Z.WorldReady=false;ErrorNoHalt("[STALKER Zone] Повреждён "..path.."; редактор заблокирован\n")
+  Z.ReportError("Файл Зоны","повреждён data/"..path.." — редактор заблокирован до ручного восстановления");return
  end
  local world={version=1,fields={},zones={}}
  for id,f in pairs(data.fields) do local clean=Z.ValidateEntry("field",f);if clean then clean.id=tostring(id);world.fields[clean.id]=clean end end
@@ -151,6 +159,7 @@ function Z.RegenerateAll(announce)
   for _,p in ipairs(player.GetHumans()) do p:ChatPrint("[КПК] Выброс закончился. Аномалии сместились — в Зоне появились новые артефакты.") end
  end
  hook.Run("STALKER_ZONE_Regenerated")
+ if Z.UpdateMarkers then Z.UpdateMarkers() end
 end
 
 function Z.TopUpArtifacts()
