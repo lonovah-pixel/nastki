@@ -1,9 +1,18 @@
 -- Эффекты использования новых предметов. Возврат true расходует одну единицу.
 local Z=STALKER_ZONE
 
+-- Доза — через API радиации (STALKER_RAD.AddDose), если он есть. Обработчик получает копию инвентаря,
+-- которую инвентарь затем сохраняет: новая доза записывается и в неё, иначе сохранение вернуло бы старую.
 local function reduceDose(p,inv,amount)
- if (inv.dose or 0)<=0 then return false end
- inv.dose=math.max(0,inv.dose-amount);p:SetNW2Float("stalker_dose",inv.dose);return true
+ local R=STALKER_RAD
+ local dose=R and R.GetDose and tonumber(R.GetDose(p)) or tonumber(inv.dose) or 0
+ if dose<=0 then return false end
+ if R and R.AddDose then
+  local v=R.AddDose(p,-amount)
+  if v==false then return false end
+  inv.dose=v;return true
+ end
+ inv.dose=math.max(0,dose-amount);p:SetNW2Float("stalker_dose",inv.dose);return true
 end
 
 function Z.RegisterUseHandlers()

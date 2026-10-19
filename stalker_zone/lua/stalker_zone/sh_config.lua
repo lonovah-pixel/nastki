@@ -1,5 +1,6 @@
 -- STALKER Zone: аномалии, артефакты, детекторы, мутанты, снаряжение и торговля.
--- Все числа здесь — точки настройки баланса. Реестр предметов общий для сервера и клиента.
+-- Все числа здесь — значения по умолчанию: администратор меняет их в «Коменданте» → «Настройки»
+-- (регистрация — sh_settings.lua). Реестр предметов общий для сервера и клиента.
 local Z=STALKER_ZONE
 Z.Config={
  -- Доступ к редактору: суперадмин или право "zone" панели «Комендант».
@@ -13,6 +14,8 @@ Z.Config={
  ArtifactPickupRange=110,
  ArtifactVisibleRange=260,    -- с детектором артефакт проявляется ближе этой дистанции
  AnnounceRegen=true,
+ -- Метки на карте КПК (только карта, без HUD): поля аномалий и логова; торговцы и вербовщики.
+ MarkFields=true,MarkTraders=true,
  -- Мутанты
  MaxMutants=60,MutantSafeRadius=700,MutantTick=5,
  CorpseLifetime=330,          -- трупы мутантов из логов (разделка доступна 300 с)
@@ -26,6 +29,7 @@ Z.Config={
  -- Восполнение складов торговцев (в минутах) и доля восполнения за раз.
  RestockMinutes=20,RestockShare=.5,
  -- Стартовый набор новичка (выдаётся один раз, только новому сохранению инвентаря).
+ StarterEnabled=true,
  Starter={{"pistol",1},{"ammo_pistol",2},{"bandage",3},{"water",1},{"bread",1},{"crowbar",1}},
  -- Максимальная суммарная защита от одного типа урона, %.
  ResistCap=80,
@@ -83,3 +87,20 @@ Z.Mutants={
  chimera={class="npc_antlionguard",name="Химера",reward=600,faction="mutants",health=1.5},
 }
 Z.MutantOrder={"zombie","snork","izlom","tushkan","tushkan_fast","tushkan_toxic","blinddog","chimera"}
+-- health — множитель здоровья NPC (1 — как в HL2); задаётся всем, чтобы настройка была у каждого вида.
+for _,m in pairs(Z.Mutants) do m.health=m.health or 1 end
+
+-- Учёные и экологи платят за артефакты больше остальных (множитель цены скупки).
+Z.ArtifactBonus={trader_scientists=1.25,trader_ecologists=1.15}
+
+-- Типы меток Зоны для карты КПК: подпись в легенде и цвет по умолчанию. Метки только на карте (range=0 — без HUD).
+Z.MarkerKinds={
+ anomaly={label="Аномальное поле",color=Color(150,170,230)},
+ lair={label="Логово мутантов",color=Color(190,90,70)},
+ recruiter={label="Вербовщик",color=Color(200,169,81)},
+}
+if STALKER_MARKERS and type(STALKER_MARKERS.Kinds)=="table" then
+ for id,k in pairs(Z.MarkerKinds) do
+  STALKER_MARKERS.Kinds[id]=STALKER_MARKERS.Kinds[id] or {color=k.color,world=false,edge=false,range=0,label=k.label}
+ end
+end

@@ -349,7 +349,6 @@ GM.Config.DefaultPlayerGroups = {
 -- Custom modules in this addon that are disabled.
 GM.Config.DisabledCustomModules = {
     ["hudreplacement"] = false, -- STALKER: деньги и профессия в стиле КПК
-    ["extraf4tab"] = true,
     ["stalker_jobs"] = false, -- STALKER: профессии группировок привязаны к членству
 }
 
@@ -480,7 +479,7 @@ GM.Config.hideNonBuyable = false
 -- Hide only the items that you have the wrong job for (or for which the customCheck says no).
 -- When you set this option to true and hideNonBuyable to false, you WILL see e.g. items that are too expensive for you to buy.
 -- but you won't see gundealer shipments when you have the citizen job.
--- STALKER RP: профессии группировок видны всем (серыми с подсказкой о вербовщике), чтобы игроки знали о них.
+-- STALKER RP: меню F4 DarkRP отключено (disabled_defaults.lua, модуль f4menu) — F4 открывает КПК.
 GM.Config.hideTeamUnbuyable = false
 
 --[[---------------------------------------------------------------------------

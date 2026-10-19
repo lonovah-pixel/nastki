@@ -49,8 +49,13 @@ timer.Create("STALKER_ZONE.GearTick",1,0,function()
    end
    -- Отрицательный суммарный фон (только артефакты, вне радиационных зон) ускоряет вывод дозы.
    local rate=p:GetNW2Float("stalker_rad_rate",0)
-   if rate<0 and (inv.dose or 0)>0 then
-    inv.dose=math.max(0,inv.dose+rate);p:SetNW2Float("stalker_dose",inv.dose)
+   if rate<0 then
+    local R=STALKER_RAD
+    if R and R.AddDose and R.GetDose then
+     if (tonumber(R.GetDose(p)) or 0)>0 then R.AddDose(p,rate) end
+    elseif (inv.dose or 0)>0 then
+     inv.dose=math.max(0,inv.dose+rate);p:SetNW2Float("stalker_dose",inv.dose)
+    end
    end
   end
  end

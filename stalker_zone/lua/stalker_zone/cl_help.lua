@@ -1,61 +1,106 @@
--- Памятка новичка (первый вход, !help, stz_help) и список сталкеров онлайн во вкладке PDA.
+-- Памятка сталкера: окно (первый вход, !help, stz_help), вкладка КПК «Памятка», раздел «Зона» справочника КПК
+-- и список сталкеров онлайн во вкладке PDA инвентаря. Всё оформление — тема STALKER_THEME.
 local Z=STALKER_ZONE
-local C={text=Color(217,207,176),muted=Color(138,143,115),accent=Color(200,169,81)}
-surface.CreateFont("STZ.HelpTitle",{font="Trebuchet MS",size=22,weight=700,extended=true})
-surface.CreateFont("STZ.HelpHead",{font="Tahoma",size=16,weight=700,extended=true})
-surface.CreateFont("STZ.HelpBody",{font="Tahoma",size=14,weight=500,extended=true})
+local function px(n) local T=STALKER_THEME;return T and T.Px and T.Px(n) or math.Round(n) end
+local function minutes(sec) return math.max(1,math.floor((tonumber(sec) or 600)/60+.5)) end
 
+--[[ Содержимое. Строка — абзац, функция — абзац с числами из настроек, {"Клавиша","что делает"} — строка таблицы. ]]
 Z.Help={
- {"Управление",{
-  "TAB — инвентарь (КПК). ALT + 1–9 — быстрые слоты.",
-  "E — говорить с торговцем/вербовщиком, подбирать предметы, обыскивать рюкзаки.",
-  "F4 — профессии. F6 — сеть группировок: территории, дипломатия, ранг.",
-  "F1 — справка DarkRP и чат-команды. !stash — личные тайники.",
+ {"Клавиши и команды",{
+  {"TAB","Инвентарь: рюкзак, экипировка, быстрые слоты, тайники"},
+  {"F4 / !кпк","КПК: сводка, карта с метками, сообщения, задания, события, справочник и эта памятка"},
+  {"E","Торговцы, вербовщики и квестодатели, подбор предметов, обыск сумок"},
+  {"Удерживать E","Захват флага территории, вскрытие груза, обыск тайника по наводке"},
+  {"G","Смотрите на игрока: представиться, передать деньги или предмет, обыскать"},
+  {"H / !emote","Жесты и позы: помахать, отдать честь, сесть у костра"},
+  {"F6","Группировки: территории, отношения, звание; лидер — «Командование»"},
+  {"ALT + 1–9","Быстрые слоты"},
+  {"F1","Справка DarkRP и чат-команды"},
+  {"!help","Эта памятка (или КПК → «Памятка»)"},
  }},
  {"Как выжить",{
-  "Следите за голодом и жаждой: на нуле они отнимают здоровье.",
-  "Радиация копится в зонах заражения и от артефактов. Антирад, водка и научная аптечка снижают дозу.",
-  "Выброс: при сирене ищите укрытие под крышей. На пике незащищённых сталкеров валит с ног.",
-  "Аномалии выдают себя искажением воздуха, искрами, пламенем или зелёным паром. Обходите их.",
+  function() local s=Z.Config.Survival;return "Голод и жажда на нуле отнимают здоровье — носите еду и воду. После возрождения сытость и вода не ниже "..tostring(s.RespawnMinimum).."%." end,
+  "Радиация копится в радиационных зонах и от фонящих артефактов. Антирад, водка, научная аптечка и артефакт «Пузырь» снижают дозу; костюм и противогаз защищают.",
+  "Выброс: услышав сирену, бегите под крышу. На пике незащищённых сталкеров валит с ног; после выброса аномалии смещаются.",
+  "Аномалии выдают себя искажением воздуха, искрами, пламенем, пылью или зелёным паром. Обходите их.",
+  "Броня, шлем и обувь изнашиваются от попаданий: защита падает до половины номинала. Состояние — в карточке предмета.",
  }},
  {"Заработок",{
   "Артефакты лежат у аномалий и видны только с детектором в рюкзаке. Детектор пищит чаще, когда артефакт рядом.",
-  "После каждого выброса аномалии смещаются и появляются новые артефакты.",
-  "Мутантов можно разделать монтировкой (E по туше) и продать части торговцу. Добыча: stb_claim.",
-  "Торговцы группировок продают снаряжение и скупают хабар. Учёные платят за артефакты больше.",
+  "Мутантов разделывают монтировкой (E по туше) и продают части торговцам. Добыча, не влезшая в рюкзак: stb_claim.",
+  "Торговцы скупают хабар; учёные и экологи платят за артефакты больше. Торговцы, вербовщики, поля аномалий и логова мутантов отмечены на карте КПК.",
+  "Крафт: вещи собираются по рецептам из деталей, хабара и трофеев мутантов; детали дают разборкой (ПКМ по предмету → «Разобрать»).",
+  "Готовка: сырое мясо мутантов готовят у огня — у костра можно присесть (H → «Сидеть»). За изделия и блюда дают нашивки «Мастер» и «Повар».",
+ }},
+ {"Задания и события",{
+  "Квестодатели — Бармен, Профессор, Охотник и Связной: подойдите и нажмите E. Журнал — F4 → «Задания» или !quests.",
+  "«Путь новичка» проведёт по первым шагам в Зоне. Скрыть подсказки линии: stq_guideline 0 в консоли.",
+  "События — сбитый груз, гон мутантов, артефактный шторм, военный рейд, охота за головой — объявляются в новостях КПК; идущие события — КПК → «События».",
+  "Маячок покупается у торговцев и ставится из инвентаря («Использовать»): метка видна вам или всей группировке.",
  }},
  {"Группировки",{
-  "Вступление — у вербовщика группировки (E). Нужен взнос или допуск от лидера.",
-  "После вступления в F4 открывается профессия группировки с её снаряжением и цветом.",
-  "Во время войны группировки захватывают точки и получают очки снабжения.",
+  "Вступление — у вербовщика группировки (E) или по приглашению лидера. Профессия группировки выдаётся сама при вступлении; меню профессий F4 отключено.",
+  "Территории захватывают, удерживая E на флаге точки. Они пополняют казну и очки снабжения группировки.",
+  "Казна, приглашения и способности — F6 → «Командование» (лидер и офицеры, !leader). Сводка группировки — КПК → «Группировка».",
+  "Имя незнакомца скрыто, пока он не представится (G). Нашивки — КПК → «Нашивки».",
  }},
- {"Смерть",{
-  "Экипировка остаётся при вас, а содержимое рюкзака падает на месте гибели в сумке.",
-  "Сумку может забрать кто угодно, пока она не исчезнет (10 минут).",
+ {"Смерть и тайники",{
+  function() return "Экипировка остаётся при вас, содержимое рюкзака падает в сумке на месте гибели и лежит "..minutes(Z.Config.DeathDrop.Lifetime).." мин." end,
+  "В сумке погибшего бывают записи КПК: обыскавший её получает наводку на тайник погибшего — метку на карте и во вкладке КПК «Тайники».",
+  "Свои тайники: TAB → «Тайники» или !stash. У тайника по наводке удерживайте E, чтобы обыскать его.",
+  "Запас патронов сохраняется при выходе с сервера, но не при смерти.",
  }},
 }
 
-function Z.OpenHelp()
- if IsValid(Z.HelpFrame) then Z.HelpFrame:Remove() end
- local f=vgui.Create("DFrame");Z.HelpFrame=f
- f:SetSize(math.min(760,ScrW()-40),math.min(600,ScrH()-40));f:Center();f:SetTitle("");f:MakePopup();f:DockPadding(18,48,18,18)
- f.Paint=function(_,w,h)
-  if STALKER_STYLE and STALKER_STYLE.Frame then STALKER_STYLE.Frame("stalker_inv",w,h) else surface.SetDrawColor(22,24,19);surface.DrawRect(0,0,w,h) end
-  draw.SimpleText("ПАМЯТКА СТАЛКЕРА","STZ.HelpTitle",20,16,C.accent)
+local function lineText(line)
+ if type(line)=="function" then local ok,res=pcall(line);return ok and tostring(res) or "" end
+ return tostring(line)
+end
+
+-- Строка «клавиша — действие»: перенос текста по ширине, высота подстраивается.
+local function keyRow(parent,key,text)
+ local U=STALKER_STYLE
+ local row=vgui.Create("DPanel",parent);row:Dock(TOP);row:DockMargin(px(6),0,px(6),px(4));row.Key=key;row.Text=text;row.Lines={text}
+ row.PerformLayout=function(self,w)
+  self.Lines=U.Wrap(self.Text,"STALKER.Body",math.max(px(80),w-px(150)))
+  local h=math.max(1,#self.Lines)*px(18)+px(8);if self:GetTall()~=h then self:SetTall(h) end
  end
- local scroll=vgui.Create("DScrollPanel",f);scroll:Dock(FILL)
- if STALKER_STYLE and STALKER_STYLE.Scroll then STALKER_STYLE.Scroll(scroll) end
+ row.Paint=function(self,w,h)
+  U.Panel("",0,0,w,h,false)
+  U.Text(self.Key,"STALKER.Head",px(10),px(4),"accent")
+  for i,l in ipairs(self.Lines or {}) do U.Text(l,"STALKER.Body",px(140),px(4)+(i-1)*px(18),"text") end
+ end
+ return row
+end
+
+-- Заполнить панель памяткой (окно и вкладка КПК строятся одной функцией).
+function Z.BuildHelp(parent)
+ local U=STALKER_STYLE
+ local scroll=vgui.Create("DScrollPanel",parent);scroll:Dock(FILL)
+ if U and U.Scroll then U.Scroll(scroll) end
+ if not U or not U.Label then return scroll end
  for _,section in ipairs(Z.Help) do
-  local head=vgui.Create("DLabel",scroll);head:Dock(TOP);head:SetTall(28);head:SetFont("STZ.HelpHead");head:SetTextColor(C.accent);head:SetText(section[1])
+  local head=U.Label(scroll,section[1],"STALKER.Head","accent");head:Dock(TOP);head:DockMargin(0,px(8),0,px(4))
   for _,line in ipairs(section[2]) do
-   local l=vgui.Create("DLabel",scroll);l:Dock(TOP);l:DockMargin(10,0,6,4);l:SetFont("STZ.HelpBody");l:SetTextColor(C.text)
-   l:SetWrap(true);l:SetAutoStretchVertical(true);l:SetText("• "..line)
+   if type(line)=="table" then keyRow(scroll,line[1],line[2])
+   else local l=U.Label(scroll,"• "..lineText(line),"STALKER.Body","text");l:Dock(TOP);l:DockMargin(px(10),0,px(6),px(4)) end
   end
  end
- local note=vgui.Create("DLabel",f);note:Dock(BOTTOM);note:SetTall(20);note:SetFont("STZ.HelpBody");note:SetTextColor(C.muted)
- note:SetText("Открыть снова: !help в чате или stz_help в консоли.")
+ local note=U.Label(scroll,"Открыть снова: !help в чате, stz_help в консоли или КПК → «Памятка». Подробности — КПК → «Справочник» и «Энциклопедия».","STALKER.Small","muted")
+ note:Dock(TOP);note:DockMargin(0,px(12),0,0)
+ return scroll
 end
-concommand.Add("stz_help",Z.OpenHelp)
+
+function Z.OpenHelp()
+ if IsValid(Z.HelpFrame) then Z.HelpFrame:Remove() end
+ local U=STALKER_STYLE
+ if not U or not U.Window then print("[STALKER Zone] Памятка требует STALKER Core");return end
+ local f;f=U.Window({title="Памятка сталкера",w=800,h=660,onClose=function() if Z.HelpFrame==f then Z.HelpFrame=nil end end})
+ Z.HelpFrame=f
+ Z.BuildHelp(f)
+ return f
+end
+concommand.Add("stz_help",function() Z.OpenHelp() end)
 
 -- Первый вход на этот сервер: памятка открывается сама один раз.
 hook.Add("InitPostEntity","STALKER_ZONE.Help",function()
@@ -65,20 +110,66 @@ hook.Add("InitPostEntity","STALKER_ZONE.Help",function()
  end)
 end)
 
--- PDA: кто сейчас в сети КПК.
+-- Вкладка КПК «Памятка» (в дополнение к окну).
+local C=STALKER_CORE
+if C and C.RegisterPDATab then
+ C.RegisterPDATab("memo",{title="Памятка",order=90,build=function(parent) Z.BuildHelp(parent) end})
+end
+
+-- Раздел справочника КПК «Зона»: числа берутся из текущих настроек сервера.
+function Z.GuideBlocks()
+ local cfg=Z.Config;local out={{head="Поля аномалий"}}
+ out[#out+1]="Администрация размечает поля аномалий; на карте КПК они отмечены кругом «Аномальное поле», логова — «Логово мутантов». После каждого выброса аномалии смещаются и рождаются новые артефакты"..
+  ((tonumber(cfg.ArtifactRefreshMinutes) or 0)>0 and (", без выброса — досыпаются раз в "..cfg.ArtifactRefreshMinutes.." мин.") or ".")
+ for _,kind in ipairs(Z.AnomalyOrder) do
+  local a=Z.Anomalies[kind]
+  out[#out+1]={a.name,string.format("радиус %d · урон %s",a.radius,tostring(math.Round(a.damage*(tonumber(cfg.AnomalyDamageScale) or 1),1)))}
+ end
+ out[#out+1]={head="Детекторы"}
+ for _,id in ipairs({"det_echo","det_bear","det_veles"}) do
+  local d=Z.Detectors[id];local item=STALKER_INV and STALKER_INV.Items and STALKER_INV.Items[id]
+  if d then out[#out+1]={item and item.name or id,string.format("%.0f м · %s",d.range*.01905,d.mode=="signal" and "сила сигнала" or d.mode=="arrow" and "стрелка на артефакт" or "метки всех артефактов")} end
+ end
+ out[#out+1]={head="Смерть"}
+ out[#out+1]="Сумка погибшего лежит "..minutes(cfg.DeathDrop.Lifetime).." мин. Записи КПК в ней дают наводку на тайник погибшего."
+ out[#out+1]={note="Памятка целиком — вкладка КПК «Памятка» или !help."}
+ return out
+end
+function Z.RegisterGuide()
+ local P=STALKER_PDA
+ if Z.GuideAdded or type(P)~="table" or type(P.AddGuide)~="function" then return end
+ Z.GuideAdded=true
+ P.AddGuide("zone",{title="Зона",subtitle="Поля аномалий, детекторы, сумка погибшего",order=5,blocks=function() return Z.GuideBlocks() end})
+end
+Z.RegisterGuide()
+hook.Add("STALKER_PDA_Ready","STALKER_ZONE.Guide",function() Z.RegisterGuide() end)
+
+-- PDA инвентаря: кто сейчас в сети КПК. Имена — глазами игрока (знакомства STALKER_SOCIAL).
+function Z.OnlineLabel(p)
+ local SO=STALKER_SOCIAL;local lp=LocalPlayer()
+ if SO and SO.Label then
+  local name=SO.Label(lp,p)
+  if SO.Knows and not SO.Knows(lp,p) then return name end
+  local faction=STFW and p:GetNW2Bool("stfw_joined",false) and STFW.Name(p:GetNW2String("stfw_faction","loner"))
+  return name.." · "..(faction or "одиночка")
+ end
+ local faction=STFW and p:GetNW2Bool("stfw_joined",false) and STFW.Name(p:GetNW2String("stfw_faction","loner")) or "одиночка"
+ return p:Nick().." · "..faction
+end
 hook.Add("STALKER_INV_DrawPDA","STALKER_ZONE.Online",function(panel,w,h)
- local S=STALKER_INV;if not S or not S.Px then return end
+ local S=STALKER_INV;local U=STALKER_STYLE
+ if not S or not S.Px or not U or not U.Text then return end
  local players=player.GetAll()
- table.sort(players,function(a,b) return a:Nick()<b:Nick() end)
+ local labels={};for _,p in ipairs(players) do labels[p]=Z.OnlineLabel(p) end
+ table.sort(players,function(a,b) return labels[a]<labels[b] end)
  local y=h-S.Px(96)
- draw.SimpleText("СЕТЬ КПК / В СЕТИ: "..#players,"SI.Small",S.Px(16),y,C.accent)
+ U.Text("СЕТЬ КПК / В СЕТИ: "..#players,"SI.Small",S.Px(16),y,"accent")
  local shown=0
- for i,p in ipairs(players) do
-  if shown>=8 then draw.SimpleText("… и ещё "..(#players-shown),"SI.Small",w-S.Px(16),y,C.muted,TEXT_ALIGN_RIGHT);break end
-  local col,row=(shown%2),math.floor(shown/2)
-  local faction=STFW and p:GetNW2Bool("stfw_joined",false) and STFW.Name(p:GetNW2String("stfw_faction","loner")) or "одиночка"
-  local text=S.FitText(p:Nick().." · "..faction,"SI.Small",w/2-S.Px(24))
-  draw.SimpleText(text,"SI.Small",S.Px(16)+col*(w/2),y+S.Px(18)+row*S.Px(18),C.text)
+ for _,p in ipairs(players) do
+  if shown>=8 then U.Text("… и ещё "..(#players-shown),"SI.Small",w-S.Px(16),y,"muted",TEXT_ALIGN_RIGHT);break end
+  local column,row=(shown%2),math.floor(shown/2)
+  local fit=S.FitText or U.Fit
+  U.Text(fit(labels[p],"SI.Small",w/2-S.Px(24)),"SI.Small",S.Px(16)+column*(w/2),y+S.Px(18)+row*S.Px(18),"text")
   shown=shown+1
  end
 end)

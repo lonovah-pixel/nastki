@@ -6,6 +6,7 @@ local function countMutants()
  for _,rt in pairs(Z.Runtime.zones) do for _,e in ipairs(rt.alive) do if IsValid(e) and e:Health()>0 then n=n+1 end end end
  return n
 end
+Z.CountMutants=countMutants
 
 local function playerNear(pos,radius)
  for _,p in ipairs(player.GetHumans()) do if p:Alive() and p:GetPos():DistToSqr(pos)<radius*radius then return true end end
@@ -32,7 +33,8 @@ function Z.SpawnMutant(zoneID)
    local npc=ents.Create(def.class);if not IsValid(npc) then return end
    npc:SetPos(pos+Vector(0,0,4));npc:SetAngles(Angle(0,math.random(0,359),0))
    npc:Spawn();npc:Activate()
-   if def.health and npc:Health()>0 then local hp=math.floor(npc:Health()*def.health);npc:SetMaxHealth(hp);npc:SetHealth(hp) end
+   local mult=tonumber(def.health) or 1
+   if mult~=1 and npc:Health()>0 then local hp=math.max(1,math.floor(npc:Health()*mult));npc:SetMaxHealth(hp);npc:SetHealth(hp) end
    npc.KillValue=def.reward;npc.StalkerZone=zoneID;npc.StalkerMutant=key
    npc:SetNW2String("stz_mutant",def.name)
    rt.alive[#rt.alive+1]=npc
@@ -60,6 +62,13 @@ end
 function Z.InitMutants()
  Z.Runtime.zones={}
  for id in pairs(Z.World.zones) do zoneRuntime(id).next=CurTime()+math.Rand(1,8) end
+end
+-- «Убрать мутантов»: живые исчезают, логова заселяются заново по обычному интервалу (не сразу).
+function Z.RemoveMutants()
+ local n=countMutants()
+ Z.ClearMutants()
+ for id,zone in pairs(Z.World.zones) do zoneRuntime(id).next=CurTime()+(tonumber(zone.respawn) or 60) end
+ return n
 end
 
 timer.Create("STALKER_ZONE.Mutants",Z.Config.MutantTick,0,function()

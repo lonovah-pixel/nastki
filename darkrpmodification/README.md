@@ -2,6 +2,14 @@ The DarkRP modification addon
 ==================
 for DarkRP 2.5.0 and above.
 
+## STALKER RP ##
+* Меню F4 DarkRP отключено (`darkrp_config/disabled_defaults.lua`, модуль `f4menu`): клавиша F4 открывает КПК (`stalker_pda`).
+* Профессии: «Сталкер» (по умолчанию), профессии 10 группировок и служебная «Администрация» (`darkrp_customthings/jobs.lua`).
+* Модуль `darkrp_modules/stalker_jobs`: профессия группировки выдаётся при вступлении (у вербовщика или по приглашению лидера)
+  и снимается при выходе/исключении (`STFW_FactionLeft`); ручная смена профессии (`/duty` и т. п.) запрещена хуком
+  `playerCanChangeTeam` — только принудительно или администрации (`IsAdmin` или право `factions`).
+* Модуль `darkrp_modules/hudreplacement`: плашка «КПК / СЧЁТ» в теме сборки (`STALKER_THEME`).
+
 ## Download ##
 Are you looking at this addon from the github web page? There's a "Download zip" button on the right.
 Just download and put the contents into a folder in the garrysmod/addons folder!

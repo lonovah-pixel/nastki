@@ -18,8 +18,7 @@ Z.TraderStock={
  trader_ecologists={{"hazmat",2},{"seva",1},{"gasmask",3},{"medkit_sci",6},{"det_veles",1}},
  trader_renegades={{"pistol",2},{"shotgun",1},{"bandit_jacket",2},{"vodka",10}},
 }
--- Учёные и экологи платят за артефакты больше остальных.
-Z.ArtifactBonus={trader_scientists=1.25,trader_ecologists=1.15}
+-- Множители цены артефактов у учёных и экологов — Z.ArtifactBonus (sh_config.lua, настройки «Торговля»).
 
 local function assortment(id)
  local list={}
@@ -28,16 +27,20 @@ local function assortment(id)
  return list
 end
 
+-- Цены, выставленные Зоной, пересчитываются при повторном вызове (изменили множитель в настройках);
+-- цены из конфигов торговли и разделки не трогаем.
+Z.OwnPrices=Z.OwnPrices or {}
 function Z.ConfigureTraders()
  local N=STALKER_NPC;local S=STALKER_INV
  if not N or not N.Config or not N.Config.Traders or not S then return end
  for id,profile in pairs(N.Config.Traders) do
   profile.prices=profile.prices or {}
+  local own=Z.OwnPrices[id] or {};Z.OwnPrices[id]=own
   for item,price in pairs(Z.ItemPrices) do
-   if S.Items[item] and not profile.prices[item] then
+   if S.Items[item] and (not profile.prices[item] or own[item]) then
     local sell=price.sell
     if Z.Artifacts[item] and Z.ArtifactBonus[id] then sell=math.floor(sell*Z.ArtifactBonus[id]) end
-    profile.prices[item]={buy=price.buy,sell=sell}
+    profile.prices[item]={buy=price.buy,sell=sell};own[item]=true
    end
   end
   local stock={}
@@ -80,14 +83,17 @@ function Z.RestockAll()
  if n>0 and N.Log then N.Log("zone_restock",{traders=n}) end
  return n
 end
+-- RestockMinutes=0 — без автоматического восполнения (ручное — «Комендант» или stz_restock).
 timer.Create("STALKER_ZONE.Restock",60,0,function()
+ local minutes=tonumber(Z.Config.RestockMinutes) or 0
+ if minutes<=0 then Z.RestockCounter=0;return end
  Z.RestockCounter=(Z.RestockCounter or 0)+1
- if Z.RestockCounter>=Z.Config.RestockMinutes then Z.RestockCounter=0;Z.RestockAll() end
+ if Z.RestockCounter>=minutes then Z.RestockCounter=0;Z.RestockAll() end
 end)
 -- Первый прогон после загрузки: склады, созданные до установки аддона, получают новый ассортимент.
 hook.Add("InitPostEntity","STALKER_ZONE.Restock",function() timer.Simple(10,function() Z.RestockAll() end) end)
 concommand.Add("stz_restock",function(p)
- if IsValid(p) and not p:IsSuperAdmin() then return end
+ if IsValid(p) and not (Z.CanEdit and Z.CanEdit(p) or p:IsSuperAdmin()) then return end
  local n=Z.RestockAll();local msg="[STALKER Zone] Пополнено складов: "..n
  if IsValid(p) then p:ChatPrint(msg) else print(msg) end
 end)

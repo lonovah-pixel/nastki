@@ -49,49 +49,80 @@ hook.Add("PlayerSpawn","STALKER_ZONE.Needs",function(p)
  end)
 end)
 
---[[ Рюкзак погибшего: содержимое рюкзака (сетка) остаётся на месте смерти. Экипировка сохраняется. ]]
+--[[ Рюкзак погибшего: содержимое рюкзака (сетка) остаётся на месте смерти. Экипировка сохраняется.
+ Наводка на тайник погибшего (STALKER_INV, DoPlayerDeath → victim.StalkerIntelPending) кладётся в сумку
+ обработчиком STALKER_ZONE_BagDropped; поэтому сумка выпадает и с пустым рюкзаком, если наводка есть. ]]
 function Z.DropDeathBag(p)
  local cfg=Z.Config.DeathDrop
  if not cfg.Enabled or not inventoryReady(p) then return end
  if hook.Run("STALKER_ZONE_CanDropBag",p)==false then return end
  local S=STALKER_INV;local inv=p.StalkerInventory
- if not next(inv.grid) then return end
+ local hasItems=next(inv.grid)~=nil
+ if not hasItems and not p.StalkerIntelPending then return end
  local items={}
- for i=1,40 do if inv.grid[i] then items[#items+1]=table.Copy(inv.grid[i]) end end
- -- Сначала изъятие из сохранения игрока, затем предметы в мире: рестарт не создаёт дубликатов.
- inv.grid={};S.CleanQuickbar(inv)
- inv.revision=((inv.revision or 0)+1)%4294967296
- p:SetNW2Float("stalker_inv_weight",S.Weight(inv))
- S.SaveInventory(p);S.Sync(p,"Рюкзак остался на месте гибели")
+ if hasItems then
+  for i=1,40 do if inv.grid[i] then items[#items+1]=table.Copy(inv.grid[i]) end end
+  -- Сначала изъятие из сохранения игрока, затем предметы в мире: рестарт не создаёт дубликатов.
+  inv.grid={};S.CleanQuickbar(inv)
+  inv.revision=((inv.revision or 0)+1)%4294967296
+  p:SetNW2Float("stalker_inv_weight",S.Weight(inv))
+  S.SaveInventory(p);S.Sync(p,"Рюкзак остался на месте гибели")
+ end
  local pos=p:GetPos()+Vector(0,0,16)
  local bag=ents.Create("stalker_deathbag");if not IsValid(bag) then return end
  bag.Items=items;bag.OwnerSID=p:SteamID64()
  bag:SetPos(pos);bag:SetAngles(Angle(0,math.random(0,359),0));bag:Spawn()
  bag:SetOwnerName(p:Nick());bag:SetItemCount(#items)
+ if bag.SetOwnerSID then bag:SetOwnerSID(tostring(p:SteamID64() or "")) end
  hook.Run("STALKER_ZONE_BagDropped",p,bag)
+ if not IsValid(bag) then return end
+ if bag.SetHasIntel then bag:SetHasIntel(bag.StashIntel~=nil) end
+ -- Пустая сумка без наводки (обработчик не положил её) не нужна.
+ if #items==0 and not bag.StashIntel then bag.Items=nil;bag:Remove();return end
  return bag
 end
 hook.Add("PlayerDeath","STALKER_ZONE.DeathBag",function(p) Z.DropDeathBag(p) end)
 
+-- Записи КПК погибшего: наводку получает тот, кто первым успешно обыскал сумку.
+local function takeIntel(p,bag)
+ if not bag.StashIntel or not STALKER_INV or not STALKER_INV.GiveStashIntel then return false end
+ local intel=bag.StashIntel;bag.StashIntel=nil
+ if bag.SetHasIntel then bag:SetHasIntel(false) end
+ STALKER_INV.GiveStashIntel(p,intel)
+ return true
+end
+
 -- Перенос предметов из рюкзака в инвентарь: столько, сколько влезает. UID сохраняются.
 function Z.LootBag(p,bag)
  local S=STALKER_INV
- if not IsValid(bag) or not bag.Items or bag.Busy or not p:Alive() or not inventoryReady(p) then return end
+ if not IsValid(bag) or not (bag.Items or bag.StashIntel) or bag.Busy or not p:Alive() or not inventoryReady(p) then return end
  if p:GetShootPos():DistToSqr(bag:WorldSpaceCenter())>Z.Config.DeathDrop.UseRange^2 then return end
  if S.IsUnconscious and S.IsUnconscious(p) then return end
- if hook.Run("STALKER_INV_CanPickup",p,bag,bag.Items[1])==false then return end
- S.CaptureEquipment(p)
- local inv=table.Copy(p.StalkerInventory);local left={};local taken=0
- for _,item in ipairs(bag.Items) do
-  local slot
-  if not S.FindUID(inv,item.uid) and S.Items[item.id] then for i=1,40 do if not inv.grid[i] then slot=i;break end end end
-  if slot then inv.grid[slot]=item;taken=taken+1 else left[#left+1]=item end
+ local list=bag.Items or {}
+ if hook.Run("STALKER_INV_CanPickup",p,bag,list[1])==false then return end
+ local left,taken={},0
+ if #list>0 then
+  S.CaptureEquipment(p)
+  local inv=table.Copy(p.StalkerInventory)
+  for _,item in ipairs(list) do
+   local slot
+   if not S.FindUID(inv,item.uid) and S.Items[item.id] then for i=1,40 do if not inv.grid[i] then slot=i;break end end end
+   if slot then inv.grid[slot]=item;taken=taken+1 else left[#left+1]=item end
+  end
+  if taken==0 then
+   p:ChatPrint("[КПК] Нет свободных ячеек в рюкзаке"..(bag.StashIntel and ": вещи остались в сумке" or ""))
+   if not bag.StashIntel then return end
+  end
+  if taken>0 then
+   bag.Busy=true
+   S.Commit(p,inv,"Забрано предметов: "..taken..(#left>0 and (", осталось: "..#left) or ""))
+   bag.Items=left;bag.Busy=nil
+  end
  end
- if taken==0 then p:ChatPrint("[КПК] Нет свободных ячеек в рюкзаке");return end
- bag.Busy=true
- S.Commit(p,inv,"Забрано предметов: "..taken..(#left>0 and (", осталось: "..#left) or ""))
- bag.Items=left;bag.Busy=nil
- if #left==0 then bag.Items=nil;bag:Remove() else bag:SetItemCount(#left) end
+ local intel=takeIntel(p,bag)
+ if taken==0 and not intel then return end
+ local rest=#(bag.Items or {})
+ if rest==0 and not bag.StashIntel then bag.Items=nil;bag:Remove() else bag:SetItemCount(rest) end
 end
 
 --[[ Запас патронов SWEP переживает выход с сервера (но не смерть). ]]

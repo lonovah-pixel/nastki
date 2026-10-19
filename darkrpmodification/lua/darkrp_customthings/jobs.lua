@@ -3,10 +3,12 @@ DarkRP custom jobs — STALKER RP
 ---------------------------------------------------------------------------
 Стандартные профессии DarkRP отключены в darkrp_config/disabled_defaults.lua.
 
-Членство в группировке выдаёт STALKER Factions (вербовщик, взнос или допуск
-лидера). Профессия группировки в F4 доступна только действующему члену этой
-группировки: поле stalkerFaction связывает профессию с ID фракции, а модуль
-darkrp_modules/stalker_jobs возвращает на «Сталкера» тех, кого исключили.
+Членство в группировке выдаёт STALKER Factions (вербовщик или приглашение
+лидера). Меню F4 DarkRP отключено (F4 — КПК), ручная смена профессии запрещена:
+модуль darkrp_modules/stalker_jobs сам выдаёт профессию группировки при
+вступлении и возвращает на «Сталкера» при выходе или исключении. Поле
+stalkerFaction связывает профессию с ID фракции; customCheck не даёт её чужим
+даже при принудительной смене.
 
 Снаряжение не выдаётся профессией: оружие и броня экипируются из инвентаря
 (TAB), иначе инвентарь откажется выдавать SWEP того же класса.
@@ -23,7 +25,7 @@ end
 
 local function factionJob(name, data)
     data.customCheck = stalkerMember(data.stalkerFaction)
-    data.CustomCheckFailMsg = data.CustomCheckFailMsg or ("Сначала вступите в группировку «" .. data.factionName .. "» у её вербовщика.")
+    data.CustomCheckFailMsg = data.CustomCheckFailMsg or ("Профессия выдаётся членам группировки «" .. data.factionName .. "»: вступите у её вербовщика или по приглашению лидера.")
     data.factionName = nil
     data.weapons = data.weapons or {}
     data.max = data.max or 0
@@ -44,10 +46,6 @@ local rebels = {}
 for i = 1, 9 do rebels[#rebels + 1] = "models/player/Group03/male_0" .. i .. ".mdl" end
 for i = 1, 6 do rebels[#rebels + 1] = "models/player/Group03/female_0" .. i .. ".mdl" end
 
-local medics = {}
-for i = 1, 9 do medics[#medics + 1] = "models/player/Group03m/male_0" .. i .. ".mdl" end
-for i = 1, 6 do medics[#medics + 1] = "models/player/Group03m/female_0" .. i .. ".mdl" end
-
 local refugees = {
     "models/player/Group02/male_02.mdl", "models/player/Group02/male_04.mdl",
     "models/player/Group02/male_06.mdl", "models/player/Group02/male_08.mdl",
@@ -61,7 +59,8 @@ TEAM_STALKER = DarkRP.createJob("Сталкер", {
     model = citizens,
     description = [[Вольный бродяга Зоны.
 Ищет артефакты, разделывает мутантов, торгует с барыгами и выживает.
-Вступить в группировку можно у её вербовщика (клавиша E).]],
+Вступить в группировку можно у её вербовщика (клавиша E)
+или по приглашению лидера — профессия группировки выдаётся сама.]],
     weapons = {},
     command = "stalker",
     max = 0,
@@ -72,39 +71,6 @@ TEAM_STALKER = DarkRP.createJob("Сталкер", {
     candemote = false,
     category = "Вольные сталкеры",
     sortOrder = 1,
-})
-
-TEAM_ZONEMEDIC = DarkRP.createJob("Полевой медик", {
-    color = Color(112, 158, 91, 255),
-    model = medics,
-    description = [[Лечит раненых сталкеров прямо в поле.
-Аптечка медика (ЛКМ — лечить другого, ПКМ — себя).
-Не участвует в войнах группировок без ролевой причины.]],
-    weapons = {"med_kit"},
-    command = "zonemedic",
-    max = 4,
-    salary = 30,
-    admin = 0,
-    vote = false,
-    hasLicense = false,
-    category = "Вольные сталкеры",
-    sortOrder = 2,
-})
-
-TEAM_GUIDE = DarkRP.createJob("Проводник", {
-    color = Color(150, 130, 90, 255),
-    model = refugees,
-    description = [[Знает тропы между аномалиями.
-Водит группы за плату, предупреждает о выбросах и мутантах.]],
-    weapons = {},
-    command = "guide",
-    max = 3,
-    salary = 20,
-    admin = 0,
-    vote = false,
-    hasLicense = false,
-    category = "Вольные сталкеры",
-    sortOrder = 3,
 })
 
 --[[---------------------------------------------------------------------------

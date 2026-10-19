@@ -1,9 +1,9 @@
 if SERVER and STALKER_WIPE and STALKER_WIPE.Blocked then return end
 -- STALKER Zone: загружается после инвентаря, торговли, группировок и разделки (порядок autorun по имени файла).
 STALKER_ZONE=STALKER_ZONE or {}
-local shared={"sh_config.lua","sh_items.lua","sh_gear.lua","sh_link.lua"}
-local client={"cl_detector.lua","cl_editor.lua","cl_help.lua"}
-local server={"sv_items.lua","sv_gear.lua","sv_survival.lua","sv_traders.lua","sv_world.lua","sv_mutants.lua","sv_editor.lua"}
+local shared={"sh_config.lua","sh_items.lua","sh_gear.lua","sh_link.lua","sh_settings.lua"}
+local client={"cl_detector.lua","cl_editor.lua","cl_admin.lua","cl_help.lua"}
+local server={"sv_items.lua","sv_gear.lua","sv_survival.lua","sv_traders.lua","sv_world.lua","sv_mutants.lua","sv_editor.lua","sv_markers.lua"}
 if SERVER then
  for _,f in ipairs(shared) do AddCSLuaFile("stalker_zone/"..f) end
  for _,f in ipairs(client) do AddCSLuaFile("stalker_zone/"..f) end

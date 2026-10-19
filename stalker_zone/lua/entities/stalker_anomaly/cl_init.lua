@@ -7,15 +7,24 @@ local matArc=Material("trails/electric")
 local effectsCvar=CreateClientConVar("stz_anomaly_fx","1",true,false,"Эффекты аномалий (0 — только искажение)")
 
 function ENT:Initialize()
- local cfg=self:Config();local r=cfg and (cfg.pull or cfg.radius) or 128
+ local cfg=self:Config();local r=cfg and math.max(cfg.pull or 0,cfg.radius or 0) or 128
  self:SetRenderBounds(Vector(-r,-r,-16),Vector(r,r,r*1.6))
  self.NextParticle=0;self.Seed=math.Rand(0,100)
+end
+-- Ошибка эффектов не должна сыпаться в консоль каждый кадр: одно сообщение раз в 30 с на аномалию.
+function ENT:FXError(where,err)
+ if (self.NextFXError or 0)>CurTime() then return end
+ self.NextFXError=CurTime()+30
+ local Z=STALKER_ZONE;Z.ClientErrors=Z.ClientErrors or {}
+ local list=Z.ClientErrors;list[#list+1]={t=os.time(),text=where.." «"..tostring(self:GetKind()).."»: "..tostring(err)}
+ while #list>10 do table.remove(list,1) end
+ ErrorNoHalt("[STALKER Zone] Эффект аномалии "..tostring(self:GetKind())..": "..tostring(err).."\n")
 end
 -- Тип аномалии может прийти по сети позже Initialize: звук и границы отрисовки догоняют его.
 function ENT:EnsureSetup(cfg)
  if self.SetupKind==self:GetKind() then return end
  self.SetupKind=self:GetKind()
- local r=cfg.pull or cfg.radius
+ local r=math.max(cfg.pull or 0,cfg.radius or 0)
  self:SetRenderBounds(Vector(-r,-r,-16),Vector(r,r,r*1.6))
  if self.Loop then self:StopLoopingSound(self.Loop);self.Loop=nil end
  if cfg.idle then self.Loop=self:StartLoopingSound(cfg.idle) end
@@ -39,17 +48,21 @@ local function puff(em,mat,pos,vel,life,size,endSize,color,alpha,gravity)
 end
 
 function ENT:Think()
+ local ok,err=pcall(self.ThinkFX,self)
+ if not ok then self:FXError("частицы",err) end
+end
+function ENT:ThinkFX()
  local cfg=self:Config();local lp=LocalPlayer()
  if not cfg or not IsValid(lp) then return end
  self:EnsureSetup(cfg)
  if not effectsCvar:GetBool() then return end
  local pos=self:GetPos();local dist=lp:GetPos():DistToSqr(pos)
- if dist>2500^2 or CurTime()<self.NextParticle then return end
+ if dist>2500^2 or CurTime()<(self.NextParticle or 0) then return end
  local active=CurTime()-self:GetTriggered()<.6
  self.NextParticle=CurTime()+(active and .03 or .15)
  local em=emitter(self);if not IsValid(em) then return end
  em:SetPos(pos)
- local kind=self:GetKind();local c=cfg.color;local r=cfg.radius
+ local kind=self:GetKind();local c=cfg.color or color_white;local r=cfg.radius or 64
  if kind=="electro" then
   local n=active and 6 or (math.random()<.25 and 1 or 0)
   for _=1,n do puff(em,"effects/spark",pos+Vector(0,0,30)+VectorRand()*r*.35,VectorRand()*(active and 260 or 60),.35,6,0,c,255,Vector(0,0,-300)) end
@@ -66,7 +79,7 @@ function ENT:Think()
   puff(em,"particles/smokey",pos+Vector(math.cos(a)*d,math.sin(a)*d,6),Vector(-math.sin(a)*40,math.cos(a)*40,8),1.4,10,22,c,active and 120 or 25)
  elseif kind=="vortex" then
   for _=1,active and 8 or 2 do
-   local a=math.Rand(0,math.pi*2);local d=math.Rand(r,cfg.pull)
+   local a=math.Rand(0,math.pi*2);local d=math.Rand(r,math.max(r,cfg.pull or r))
    local from=pos+Vector(math.cos(a)*d,math.sin(a)*d,math.Rand(4,60))
    local to=(pos+Vector(0,0,30)-from):GetNormalized()
    puff(em,"particles/smokey",from,to*math.Rand(80,180)+Vector(-math.sin(a)*90,math.cos(a)*90,0),1,6,2,c,active and 160 or 45)
@@ -79,8 +92,12 @@ function ENT:Think()
 end
 
 function ENT:DrawTranslucent()
+ local ok,err=pcall(self.DrawFX,self)
+ if not ok then self:FXError("отрисовка",err) end
+end
+function ENT:DrawFX()
  local cfg=self:Config();if not cfg then return end
- local pos=self:GetPos();local t=CurTime()+self.Seed;local kind=self:GetKind();local c=cfg.color
+ local pos=self:GetPos();local t=CurTime()+(self.Seed or 0);local kind=self:GetKind();local c=cfg.color or color_white
  local since=CurTime()-self:GetTriggered();local pulse=since<.6 and (1-since/.6) or 0
  -- Искажение воздуха выдаёт аномалию внимательному сталкеру.
  render.UpdateRefractTexture();render.SetMaterial(matHeat)
@@ -112,3 +129,8 @@ function ENT:DrawTranslucent()
   render.SetMaterial(matGlow);render.DrawSprite(pos+Vector(0,0,4),cfg.radius*2,cfg.radius*.6,Color(c.r,c.g,c.b,22+pulse*60))
  end
 end
+
+-- Радиусы аномалий меняются в настройках «Коменданта»: границы отрисовки и звук пересобираются.
+hook.Add("STALKER_SettingsSynced","STALKER_ZONE.AnomalyBounds",function()
+ for _,e in ipairs(ents.FindByClass("stalker_anomaly")) do if IsValid(e) then e.SetupKind=nil end end
+end)

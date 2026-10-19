@@ -6,8 +6,9 @@ The categories of the default F4 menu.
 Please read this page for more information:
 https://darkrp.miraheze.org/wiki/DarkRP:Categories
 
-STALKER RP: в F4 остаются только профессии. Оружие, патроны и снаряжение
-продают торговцы Зоны через STALKER Inventory.
+STALKER RP: меню F4 DarkRP отключено (F4 — КПК), категории группируют
+профессии в таблице игроков. Оружие, патроны и снаряжение продают торговцы
+Зоны через STALKER Inventory.
 ---------------------------------------------------------------------------]]
 
 DarkRP.createCategory{
