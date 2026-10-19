@@ -6,7 +6,7 @@ local marker="stalker_wipe/pending.json"
 local tables={"stalker_inventory","stfw_profiles","stfw_world","stnpc_stock","stnpc_wallet","stnpc_journal","stb_profiles","stb_rewards","stz_ammo",
  "stalker_stash_intel","stalker_stats","stalker_pda_messages","stalker_social_known","stalker_social_patches","stalker_quests",
  "darkrp_jobspawn","darkrp_position","darkrp_player","playerinformation","darkrp_door","darkrp_doorjobs","darkrp_doorgroups"}
-local dirs={"stalker_inv","stalker_npc","stalker_emissions","stalker_radiation","stalker_zone","stalker_events","stalker_quests"}
+local dirs={"stalker_inv","stalker_npc","stalker_emissions","stalker_radiation","stalker_zone","stalker_events","stalker_quests","stalker_craft"}
 file.CreateDir("stalker_wipe")
 local function reply(p,msg) if IsValid(p) then p:ChatPrint(msg) else print("[STALKER WIPE] "..msg) end end
 local function fail(msg)
