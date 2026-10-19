@@ -13,7 +13,10 @@ local function fonts()
 end
 fonts();hook.Add("OnScreenSizeChanged","STFW.HudFonts",fonts)
 local function px(n) return math.Round(n*scale) end
+-- fit зовут из HUDPaint каждый кадр: utf8.sub GMod — O(n²) на вызов, а перебор длин с конца — O(n³), десятки мс
+-- на длинное имя точки. U.Fit ядра режет за один проход по символам и O(log n) измерений.
 local function fit(text,font,width)
+ if U and U.Fit then return U.Fit(text,font,width) end
  surface.SetFont(font);if surface.GetTextSize(text)<=width then return text end
  local len=utf8.len(text) or 0
  for i=len,1,-1 do local s=utf8.sub(text,1,i).."…";if surface.GetTextSize(s)<=width then return s end end

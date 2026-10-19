@@ -110,6 +110,15 @@ if SERVER then
  hook.Remove("STFW_FactionChanged","TEST.Review91")
  check(F.SetFaction(member,"bandits",true) and F.IsMember(member,"bandits") and F.Load(member).frank==1,"переход в другую группировку сбрасывает звание")
 
+ section("Ревью группировок: снимок после загрузки клиента")
+ -- Снимок из PlayerInitialSpawn (таймер 2 с) медленный клиент теряет; ядро зовёт STALKER_PlayerReady, когда Lua клиента работает.
+ local late=join("Медленный клиент",1400)
+ M.netSent={}
+ hook.Run("STALKER_PlayerReady",late)
+ local snap=decode(lastSent("stfw.state",late))
+ check(snap and snap.me and snap.me.faction=="loner","снимок группировок досылается по STALKER_PlayerReady")
+ M.removePlayer(late)
+
  section("Ревью группировок: очистка")
  F.Editor(admin,{op="leader",faction="renegades",sid=""})
  for _,p in ipairs(players) do F.ExpelSID(p:SteamID64()) end
@@ -165,5 +174,41 @@ else
   local s2=state(.2);s2.command.cooldowns={rally=0};s2.command.credits=100;F.State=s2;F.StateAt=CurTime()
   rally.Think(rally);check(rawget(rally,"_on")==true,"после перезарядки кнопка снова активна без перестройки окна")
  end
+
+ section("Ревью группировок: HUD и карта без квадратичного utf8.sub")
+ -- utf8.sub GMod — O(n²) на вызов (includes/modules/utf8.lua: sub → GetChar → len + offset на каждый символ);
+ -- перебор длин с конца в HUDPaint давал O(n³) на каждый кадр для имени точки и названий способностей.
+ local lp=LocalPlayer();local at=lp:GetPos()
+ local long=string.rep("Склад у старой водонапорной башни ",2) -- 68 символов, 126 байт: почти предел имени точки (128)
+ local s3=state(0);s3.points={p1={id="p1",name=long,kind="camp",owner="",pos={x=at.x,y=at.y,z=at.z},radius=300,height=200,radiation=0,anomaly=0,progress=0},
+  p2={id="p2",name=long.."2",kind="camp",owner="duty",pos={x=at.x+5000,y=at.y,z=at.z},radius=300,height=200,radiation=0,anomaly=0,progress=0}}
+ F.State=s3;F.StateAt=CurTime()
+ local savedFrame=F.Frame;F.Frame=nil
+ local realSub,realSize,realText=utf8.sub,surface.GetTextSize,draw.SimpleText
+ local subs,drawn=0,{}
+ utf8.sub=function(...) subs=subs+1;return realSub(...) end
+ surface.GetTextSize=function(s) return utf8.len(tostring(s))*7,10 end
+ draw.SimpleText=function(text) drawn[#drawn+1]=tostring(text) end
+ local hooks=hook.GetTable().HUDPaint
+ M.protect("HUD группировок",hooks["STFW.HUD"]);M.protect("полоса способностей",hooks["STFW.Abilities"])
+ local hudSubs=subs;local cut=false
+ for _,t in ipairs(drawn) do if t:sub(1,10)==long:sub(1,10) and t:sub(-3)=="…" and #t<#long then cut=true end end
+ subs=0;drawn={}
+ -- Схема территорий: Paint карты на каждый кадр для каждой точки.
+ local panels={};local origCreate=vgui.Create
+ vgui.Create=function(name,parent) local p=origCreate(name,parent);panels[#panels+1]=p;return p end
+ local body=M.stub("body");rawset(body,"IsValid",function() return true end)
+ local savedBody,savedMode=F.Body,F.Mode;F.Body=body;F.Mode="member"
+ M.protect("вкладка «Территории»",F.ShowPage,"map")
+ vgui.Create=origCreate
+ for _,p in ipairs(panels) do local paint=rawget(p,"Paint");if type(paint)=="function" then M.protect("отрисовка схемы",paint,p,600,380) end end
+ local mapSubs=subs;local mapCut=false
+ for _,t in ipairs(drawn) do if t:sub(1,10)==long:sub(1,10) and t:sub(-3)=="…" and utf8.len(t)*7<=180 then mapCut=true end end
+ utf8.sub,surface.GetTextSize,draw.SimpleText=realSub,realSize,realText
+ F.Body,F.Mode,F.Frame=savedBody,savedMode,savedFrame
+ check(cut,"длинное имя точки на HUD обрезано с «…»")
+ check(hudSubs==0,"HUD группировок без utf8.sub: вызовов за кадр "..hudSubs)
+ check(mapCut,"имя точки на схеме обрезано по ширине")
+ check(mapSubs==0,"схема территорий без utf8.sub: вызовов за кадр "..mapSubs)
  F.State=nil
 end

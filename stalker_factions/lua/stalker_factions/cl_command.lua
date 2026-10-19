@@ -172,6 +172,9 @@ pages.abilities=function(body,s,cmd)
  local left,right=W.Columns(body,cmd.role=="leader" and 600 or 900)
  W.Head(left,"Способности командования")
  W.Text(left,"Очки снабжения: "..(cmd.credits or 0)..". Способность можно повесить на клавишу: bind <клавиша> \"stfw_ability <id>\" или написать в чат !ability <id>.","muted","STALKER.Small")
+ -- Перезарядки — из последнего снимка: их нет в отпечатке окна, вкладка не перестраивается, а F.StateAt
+ -- обновляется каждые 3 с — с перезарядкой из снимка постройки кнопка оставалась бы неактивной навсегда.
+ local function live() local c=F.State and F.State.command;return c or cmd end
  for _,id in ipairs(F.AbilityOrder) do
   local a=F.Abilities[id];local ability=id
   local allowed=cmd.role=="leader" or a.minRank~="leader"
@@ -179,13 +182,13 @@ pages.abilities=function(body,s,cmd)
    U.Text(a.name.."  ("..ability..")","STALKER.Head",px(12),px(6),allowed and "accent" or "muted")
    local lines=U.Wrap(a.description,"STALKER.Small",w-px(170))
    for i=1,math.min(2,#lines) do U.Text(lines[i],"STALKER.Small",px(12),px(26)+(i-1)*px(15),"text") end
-   local cd=W.Left((cmd.cooldowns or {})[ability])
+   local cd=W.Left((live().cooldowns or {})[ability])
    U.Text("Стоимость "..a.cost.."  ·  перезарядка "..W.Time(a.cooldown)..(a.minRank=="leader" and "  ·  только лидер" or ""),"STALKER.Small",px(12),h-px(20),"muted")
    if cd>0 then U.Text("Готово через "..W.Time(cd),"STALKER.Small",w-px(12),px(8),"warn",TEXT_ALIGN_RIGHT) end
   end)
   local b=U.Button(card,"Применить",function() F.Cmd("ability",{id=ability}) end,"accent")
   b:Dock(RIGHT);b:SetWide(px(130));b:DockMargin(px(6),px(24),px(10),px(24))
-  b.Think=function(self) self:SetEnabled(allowed and W.Left((cmd.cooldowns or {})[ability])<=0 and (cmd.credits or 0)>=a.cost) end
+  b.Think=function(self) local c=live();self:SetEnabled(allowed and W.Left((c.cooldowns or {})[ability])<=0 and (c.credits or 0)>=a.cost) end
  end
  if cmd.role~="leader" then return end
  W.Head(right,"Развитие группировки")

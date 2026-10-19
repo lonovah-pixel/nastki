@@ -104,6 +104,8 @@ function F.SetNPCReputation(ent,id,n)
  ent:SetNW2Int("stfw_rep_"..id,n);return true
 end
 hook.Add("PlayerInitialSpawn","STFW.Load",function(p) timer.Simple(2,function() if IsValid(p) and F.Load(p) then F.SaveProfile(p:SteamID64());F.PublishProfile(p,F.Load(p));F.SendState(p) end end) end)
+-- Снимок по таймеру выше медленный клиент теряет (он ещё грузит Lua): досылаем, когда клиент реально загрузился.
+hook.Add("STALKER_PlayerReady","STFW.Ready",function(p) if IsValid(p) and F.Load(p) then F.PublishProfile(p,F.Load(p));F.SendState(p) end end)
 hook.Add("PlayerSpawn","STFW.Protection",function(p)
  p.StfwProtected=CurTime()+F.Config.SpawnProtection
  -- Отдельный модуль ищет свободное место после штатного возрождения DarkRP.
