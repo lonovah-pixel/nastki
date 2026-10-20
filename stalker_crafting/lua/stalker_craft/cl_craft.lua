@@ -360,13 +360,24 @@ end)
 concommand.Add("stcraft_menu",function(_,_,args) CR.Open(args[1]) end)
 
 --[[ Экран: подсказка у станции и полоса работы ]]
+-- Хозяин походного костра глазами зрителя: незнакомцу (STALKER Social) имя не выдаём, как и над головой.
+function CR.OwnerLabel(ent)
+ local name,sid=ent:GetOwnerName() or "",ent:GetOwnerSID() or "";local So=STALKER_SOCIAL;local lp=LocalPlayer()
+ if name=="" or sid=="" or type(So)~="table" or not IsValid(lp) or sid==lp:SteamID64() then return name end
+ local owner=C.PlayerBySID(sid)
+ if IsValid(owner) and So.Label then return So.Label(lp,owner) end
+ -- Хозяин вышел: имя видит знакомый (список знакомых клиента) или все, если скрытие выключено.
+ local cfg=type(So.Config)=="table" and So.Config or {}
+ if cfg.HideNames==false or (type(So.MyKnown)=="table" and So.MyKnown[sid]~=nil) or (cfg.AdminsSeeAll and lp:IsAdmin()) then return name end
+ return (type(cfg.StrangerName)=="string" and cfg.StrangerName~="") and cfg.StrangerName or "Незнакомец"
+end
 function CR.HintFor(ent)
  if not IsValid(ent) then return end
  local class=ent:GetClass()
  if class=="stalker_workbench" then return "E — верстак: крафт и ремонт" end
  if class=="stalker_campfire" then
   if not ent:IsLit() then return "Костёр погас" end
-  local left=ent:TimeLeft();local owner=ent:GetOwnerName() or ""
+  local left=ent:TimeLeft();local owner=CR.OwnerLabel(ent)
   return "E — готовить у костра"..(left and ("  ·  догорит через "..CR.FormatTime(left)) or "")..(owner~="" and ("  ·  "..owner) or "")
  end
 end

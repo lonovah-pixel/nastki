@@ -201,4 +201,5 @@ function CR.SendState(ply)
  local st=C.GetStats and C.GetStats(ply) or {}
  C.Send("stalker_craft.state",ply,{crafted=tonumber(st.crafted) or 0,cooked=tonumber(st.cooked) or 0})
 end
-hook.Add("PlayerInitialSpawn","STALKER_CRAFT.State",function(ply) timer.Simple(5,function() if IsValid(ply) then CR.SendState(ply) end end) end)
+-- Когда Lua клиента уже работает: сообщение по таймеру из PlayerInitialSpawn медленный клиент теряет (счётчики КПК — нули).
+hook.Add("STALKER_PlayerReady","STALKER_CRAFT.State",function(ply) CR.SendState(ply) end)

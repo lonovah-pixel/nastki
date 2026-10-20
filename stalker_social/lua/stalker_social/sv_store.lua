@@ -32,13 +32,22 @@ local function saveRow(sid,target,row)
   ..sql.SQLStr(row.name)..","..math.floor(row.at)..","..(row.contact and 1 or 0)..")")~=false
 end
 
+-- Префиксы «(шепчете) Имя» и «(кричите) Имя» DarkRP собирает на языке сервера (gmod_language сервера), а клиент сверяет
+-- их со своими фразами: у игрока с английским клиентом шёпот незнакомца шёл бы с настоящим именем. Шлём фразы сервера.
+function S.ChatPhrases()
+ local out={}
+ if DarkRP and DarkRP.getPhrase then
+  for _,k in ipairs({"whisper","yell"}) do local ok,v=pcall(DarkRP.getPhrase,k);if ok and type(v)=="string" and v~="" then out[k]=v end end
+ end
+ return out
+end
 -- Список знакомых владельцу (клиент хранит его, чтобы сам решать, чьи имена показывать).
 function S.SendKnown(ply)
  local list=S.LoadKnown(ply);if not list then return end
  local out={}
  for sid,row in pairs(list) do out[#out+1]={sid=sid,name=row.name,at=row.at,contact=row.contact or nil} end
  table.sort(out,function(a,b) return a.at>b.at end)
- C.Send("stalker_social.known",ply,{list=out})
+ C.Send("stalker_social.known",ply,{list=out,phrases=S.ChatPhrases()})
 end
 
 -- viewer узнаёт имя target. Возвращает true, впервые ли (или false и причину).
@@ -102,7 +111,7 @@ function S.SaveData(ply,d)
  return sql.Query("REPLACE INTO stalker_social_patches (sid,payload) VALUES ("..sql.SQLStr(sid)..","..sql.SQLStr(util.TableToJSON(d))..")")~=false
 end
 
--- Вход: список знакомых клиенту, свежее имя в чужих списках (контакты показывают имя и вне сети).
+-- Вход: свежее имя в чужих списках (контакты показывают имя и вне сети), нашивки (NW2 доходят и позже).
 hook.Add("PlayerInitialSpawn","STALKER_SOCIAL.Store",function(ply)
  local sid=C.SID(ply)
  if sid and S.DatabaseReady then
@@ -110,8 +119,10 @@ hook.Add("PlayerInitialSpawn","STALKER_SOCIAL.Store",function(ply)
   sql.Query("UPDATE stalker_social_known SET name="..sql.SQLStr(name).." WHERE target="..sql.SQLStr(sid))
   for _,list in pairs(S.KnownCache) do if list[sid] then list[sid].name=name end end
  end
- timer.Simple(2,function() if IsValid(ply) then S.SendKnown(ply);if S.RefreshPatches then S.RefreshPatches(ply) end end end)
+ timer.Simple(2,function() if IsValid(ply) and S.RefreshPatches then S.RefreshPatches(ply) end end)
 end)
+-- Список знакомых — когда Lua клиента уже работает: сообщение из PlayerInitialSpawn (даже через 2 с) медленный клиент теряет.
+hook.Add("STALKER_PlayerReady","STALKER_SOCIAL.Store",function(ply) if IsValid(ply) then S.SendKnown(ply) end end)
 hook.Add("PlayerDisconnected","STALKER_SOCIAL.Store",function(ply)
  local sid=C.SID(ply);if sid then S.KnownCache[sid]=nil;S.DataCache[sid]=nil end
 end)

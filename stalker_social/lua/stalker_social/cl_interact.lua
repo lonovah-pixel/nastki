@@ -20,6 +20,8 @@ net.Receive("stalker_social.known",function(len)
   if type(row)=="table" and type(row.sid)=="string" then map[row.sid]={name=tostring(row.name or ""),at=tonumber(row.at) or 0,contact=row.contact==true} end
  end
  S.MyKnown=map
+ -- Фразы шёпота и крика на языке сервера (ими DarkRP собирает префикс локального чата).
+ if type(d.phrases)=="table" then local p={};for _,k in ipairs({"whisper","yell"}) do if type(d.phrases[k])=="string" then p[k]=d.phrases[k] end end;S.ServerPhrases=p end
  hook.Run("STALKER_SOCIAL_KnownUpdated",map)
 end)
 net.Receive("stalker_social.patches",function(len)
