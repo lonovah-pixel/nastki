@@ -124,7 +124,9 @@ GM.Config.noguns                        = false
 -- norespawn - Enable/Disable that people don't have to respawn when they change job.
 GM.Config.norespawn                     = true
 -- keepPickedUp - Enable/Disable keeping picked up weapons when switching jobs.
-GM.Config.keepPickedUp                  = false
+-- STALKER: профессия меняется сама при вступлении в группировку и выходе из неё; с false DarkRP снимает всё оружие
+-- и обнуляет запас патронов (RemoveAllAmmo). У профессий сборки нет оружия — снаряжение живёт в инвентаре.
+GM.Config.keepPickedUp                  = true
 -- instantjob - Enable/Disable instantly respawning when norespawn is false
 GM.Config.instantjob                    = false
 -- npcarrest - Enable/disable arresting npc's.

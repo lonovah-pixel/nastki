@@ -5,6 +5,7 @@ local matGlow=Material("sprites/light_glow02_add")
 local matFire=Material("effects/fire_cloud1")
 local matArc=Material("trails/electric")
 local effectsCvar=CreateClientConVar("stz_anomaly_fx","1",true,false,"Эффекты аномалий (0 — только искажение)")
+local refractFrame
 
 function ENT:Initialize()
  local cfg=self:Config();local r=cfg and math.max(cfg.pull or 0,cfg.radius or 0) or 128
@@ -99,8 +100,11 @@ function ENT:DrawFX()
  local cfg=self:Config();if not cfg then return end
  local pos=self:GetPos();local t=CurTime()+(self.Seed or 0);local kind=self:GetKind();local c=cfg.color or color_white
  local since=CurTime()-self:GetTriggered();local pulse=since<.6 and (1-since/.6) or 0
- -- Искажение воздуха выдаёт аномалию внимательному сталкеру.
- render.UpdateRefractTexture();render.SetMaterial(matHeat)
+ -- Искажение воздуха выдаёт аномалию внимательному сталкеру. Копия кадра для преломления — одна на кадр:
+ -- полноэкранная копия на каждую аномалию поля (до 40 штук) роняла FPS.
+ local frame=FrameNumber()
+ if refractFrame~=frame then refractFrame=frame;render.UpdateRefractTexture() end
+ render.SetMaterial(matHeat)
  local size=(kind=="vortex" and 90 or 54)+math.sin(t*2)*6+pulse*40
  render.DrawSprite(pos+Vector(0,0,kind=="vortex" and 36 or 28),size,size*1.3,Color(255,255,255,255))
  if kind=="electro" then

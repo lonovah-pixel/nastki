@@ -21,6 +21,8 @@ STALKER RP: стандартные профессии, принтеры, лаб�
 группировки игрок получает при вступлении (модуль darkrp_modules/stalker_jobs).
 FAdmin отключён: администрирование — ULX и панель «Комендант».
 Hungermod отключён: голод и жажда ведутся инвентарём STALKER.
+Сон DarkRP (/sleep, /wake) отключён: пробуждение — это Spawn() без смерти, а системы
+сборки (инвентарь, выживание, базы группировок) считают его возрождением.
 ---------------------------------------------------------------------------]]
 
 
@@ -41,7 +43,7 @@ DarkRP.disabledDefaults["modules"] = {
     ["hud"]              = false,
     ["hungermod"]        = true,
     ["playerscale"]      = false,
-    ["sleep"]            = false,
+    ["sleep"]            = true, -- STALKER: /wake — Spawn() без смерти: удвоение брони, дубликат оружия через /drop
     ["fadmin"]           = true,
     ["animations"]       = false,
     ["chatindicator"]    = false,
