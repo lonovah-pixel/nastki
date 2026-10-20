@@ -312,6 +312,8 @@ function Q.GuideChevrons()
  -- Расстояние от цели до шеврона кратно шагу и уменьшается со временем: шевроны «бегут» к цели.
  local phase=(-CurTime()*Q.GuideSpeed)%spacing
  local k=math.max(0,math.ceil((dist-phase-len)/spacing))
+ -- Предел — 200 шевронов от первого, а не номер шага от цели: у цели дальше ~15 000 units k с самого начала больше 200.
+ local k0=k
  local out={}
  while true do
   local d=dist-phase-k*spacing
@@ -326,7 +328,7 @@ function Q.GuideChevrons()
    end
   end
   k=k+1
-  if k>200 then break end
+  if k-k0>200 then break end
  end
  return out,dir
 end

@@ -225,7 +225,8 @@ bind("offers","Offers",{label="Заданий в предложении квес
 bind("offer_minutes","OfferMinutes",{label="Обновление предложений квестодателя, мин",min=1,max=240,order=6})
 bind("cooldown","Cooldown",{label="Откат шаблона задания после сдачи или отказа, мин",min=0,max=1440,order=7})
 bind("time_mult","TimeMult",{label="Множитель сроков заданий",min=.25,max=5,step=.25,decimals=2,order=8})
-bind("talk_distance","TalkDistance",{label="Дальность разговора с квестодателем, units",min=80,max=400,order=9})
+-- shared: по этой дальности клиент закрывает окно разговора и показывает «E — поговорить».
+bind("talk_distance","TalkDistance",{label="Дальность разговора с квестодателем, units",min=80,max=400,order=9,realm="shared"})
 bind("visit_radius","VisitRadius",{label="Радиус места в заданиях «Разведка», units",min=100,max=2000,step=10,order=10,realm="shared"})
 bind("min_visit_distance","MinVisitDistance",{label="Место разведки не ближе к квестодателю, units",min=0,max=20000,step=50,order=11})
 bind("guide_length","GuideLength",{label="Длина направляющей линии к цели, units",min=300,max=3000,step=50,order=12,realm="shared"})

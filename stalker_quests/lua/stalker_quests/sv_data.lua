@@ -31,7 +31,9 @@ function Q.ValidQuest(a)
  local q={uid=a.uid,tpl=str(a.tpl,48) or "",type=a.type,title=a.title,desc=str(a.desc,1000) or "",profile=str(a.profile,32) or "",
   giver=str(a.giver,32) or "",giverName=str(a.giverName,256) or "квестодатель",goal=math.floor(num(a.goal,1,1000,1)),
   accepted=math.floor(num(a.accepted,0,4e9,os.time())),expires=math.floor(num(a.expires,0,4e9,os.time()+3600)),
-  reward=reward(a.reward),news=a.news==true,done=a.done==true,armed=a.armed==true,what=str(a.what,200)}
+  reward=reward(a.reward),news=a.news==true,done=a.done==true,what=str(a.what,200)}
+ -- armed («жив при начале выброса») не восстанавливаем: профиль читается заново только после выхода или рестарта,
+ -- а перезаход посреди выброса — возрождение у точки появления, как после гибели (гибель armed сбрасывает).
  q.progress=math.floor(math.Clamp(num(a.progress,0,1000,0),0,q.goal))
  if q.type=="fetch" then q.items=strList(a.items);if #q.items==0 then return end end
  if q.type=="kill" then q.mutants=a.mutants and strList(a.mutants) or nil;q.classes=strList(a.classes) end
