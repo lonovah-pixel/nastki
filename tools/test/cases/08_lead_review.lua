@@ -25,3 +25,20 @@ if SERVER then
   M.removePlayer(a);M.removePlayer(b)
  end
 end
+
+-- Смена профессии DarkRP без возрождения (вступление в группировку, выход, восстановление профессии при входе):
+-- после OnPlayerChangedTeam DarkRP вызывает applyPlayerClassVars, а он всегда ставит броню StartArmor (sv_util.lua:202).
+if SERVER and STALKER_INV then
+ local S=STALKER_INV
+ section("Ревью: броня костюма после смены профессии")
+ local p=TEST.join({nick="Броня и профессия",pos=Vector(-960000,0,0)})
+ local inv=table.Copy(p.StalkerInventory);inv.grid={};inv.equipment={armor=S.NewItem("jacket",1)};inv.quickbar={};S.Commit(p,inv)
+ M.advance(.2)
+ local full=p:Armor()
+ check(full>0,"костюм даёт броню: "..full)
+ hook.Call("OnPlayerChangedTeam",GAMEMODE,p,p:Team(),p:Team());p:SetArmor(0);M.advance(.5)
+ check(p:Armor()==full,"после смены профессии броня костюма вернулась: "..p:Armor().." из "..full)
+ S.CaptureEquipment(p)
+ check((p.StalkerInventory.equipment.armor.armor or 0)>0,"очки брони костюма не обнулились в сохранении")
+ M.removePlayer(p)
+end

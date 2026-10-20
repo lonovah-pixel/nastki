@@ -174,7 +174,13 @@ end)
 -- оружие: магазины запоминаем сейчас, оружие инвентаря выдаём заново в следующем тике.
 hook.Add("OnPlayerChangedTeam","STALKER_INV.Reequip",function(ply)
     S.CaptureEquipment(ply)
-    timer.Simple(0,function() if IsValid(ply) and ply:Alive() then S.ApplyEquipment(ply) end end)
+    timer.Simple(0,function()
+        if not IsValid(ply) or not ply:Alive() then return end
+        -- После этого хука DarkRP вызывает applyPlayerClassVars, и тот всегда ставит броню StartArmor (sv_util.lua):
+        -- без сброса костюм считается надетым, его броня не возвращается, а следующий CaptureEquipment обнулил бы её в предмете.
+        ply.StalkerArmorUID=nil;ply.StalkerBaseArmor=nil
+        S.ApplyEquipment(ply)
+    end)
 end)
 local function finalSave(ply) if S.FlushWear then S.FlushWear(ply,true) end;S.SaveInventory(ply) end
 hook.Add("PlayerDisconnected","STALKER_INV.Save",finalSave)
