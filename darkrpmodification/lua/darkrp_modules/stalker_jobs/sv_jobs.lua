@@ -10,6 +10,8 @@ STALKER RP: профессии группировок и членство STALKE
 - Вышедший или исключённый (STFW_FactionLeft) сразу возвращается в профессию
   по умолчанию (Сталкер). Таймер страхует случаи без хука (смена данных
   администратором, загрузка профиля).
+- Вход на сервер: DarkRP ставит всем профессию по умолчанию, а член группировки
+  получает профессию своей группировки, как только загрузится его профиль.
 ---------------------------------------------------------------------------]]
 
 local function isMember(ply, faction)
@@ -59,6 +61,7 @@ end
 
 hook.Add("STFW_FactionChanged", "STALKER.Jobs.AutoJoin", function(ply, faction)
     if not IsValid(ply) then return end
+    ply.StalkerJobRestored = true
     assignFactionJob(ply, faction)
 end)
 
@@ -89,6 +92,12 @@ timer.Create("STALKER.Jobs.Membership", 5, 0, function()
             else
                 ply.StalkerJobPending = nil
             end
+        elseif not ply.StalkerJobRestored and ply:GetNW2Bool("stfw_joined", false) then
+            -- Переподключение или рестарт: DarkRP начинает с профессии по умолчанию (GM:PlayerInitialSpawn → SetTeam),
+            -- а STFW_FactionChanged звучит только при вступлении, ручная смена запрещена — член группировки застревал
+            -- «Сталкером». Профессия выдаётся один раз за сеанс: понижение и решения администрации потом не отменяются.
+            ply.StalkerJobRestored = true
+            if ply:Team() == GAMEMODE.DefaultTeam then assignFactionJob(ply, ply:GetNW2String("stfw_faction", "")) end
         end
     end
 end)

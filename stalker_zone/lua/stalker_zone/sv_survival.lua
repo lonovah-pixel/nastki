@@ -27,7 +27,10 @@ timer.Create("STALKER_ZONE.Survival",Z.Config.Survival.Tick,0,function()
    local starving,thirsty=hunger(p,inv)<=0,(inv.thirst or 100)<=0
    if starving or thirsty then
     local dmg=DamageInfo();dmg:SetDamage(cfg.Damage);dmg:SetDamageType(DMG_GENERIC)
-    dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld());p:TakeDamageInfo(dmg)
+    dmg:SetAttacker(game.GetWorld());dmg:SetInflictor(game.GetWorld())
+    -- Голод — не попадание: очки брони HL2 (GM:HandlePlayerArmorReduction) иначе забирают 80% урона
+    -- и навсегда списывают броню костюма. Обход брони — как у аномалий (sv_gear.lua).
+    Z.AnomalyVictim=p;p:TakeDamageInfo(dmg);Z.AnomalyVictim=nil
     if (p.StzNeedsWarn or 0)<CurTime() then
      p.StzNeedsWarn=CurTime()+cfg.WarnEvery
      p:ChatPrint("[КПК] "..(thirsty and starving and "Голод и обезвоживание" or thirsty and "Обезвоживание" or "Голод").." отнимают здоровье. Поешьте и попейте.")
@@ -59,6 +62,8 @@ function Z.DropDeathBag(p)
  local S=STALKER_INV;local inv=p.StalkerInventory
  local hasItems=next(inv.grid)~=nil
  if not hasItems and not p.StalkerIntelPending then return end
+ -- Сумка создаётся до изъятия: при исчерпании лимита сущностей вещи остаются у игрока, а не пропадают.
+ local bag=ents.Create("stalker_deathbag");if not IsValid(bag) then return end
  local items={}
  if hasItems then
   for i=1,40 do if inv.grid[i] then items[#items+1]=table.Copy(inv.grid[i]) end end
@@ -69,7 +74,6 @@ function Z.DropDeathBag(p)
   S.SaveInventory(p);S.Sync(p,"Рюкзак остался на месте гибели")
  end
  local pos=p:GetPos()+Vector(0,0,16)
- local bag=ents.Create("stalker_deathbag");if not IsValid(bag) then return end
  bag.Items=items;bag.OwnerSID=p:SteamID64()
  bag:SetPos(pos);bag:SetAngles(Angle(0,math.random(0,359),0));bag:Spawn()
  bag:SetOwnerName(p:Nick());bag:SetItemCount(#items)
@@ -83,12 +87,18 @@ function Z.DropDeathBag(p)
 end
 hook.Add("PlayerDeath","STALKER_ZONE.DeathBag",function(p) Z.DropDeathBag(p) end)
 
--- Записи КПК погибшего: наводку получает тот, кто первым успешно обыскал сумку.
+-- Записи КПК погибшего: наводку получает тот, кто первым успешно обыскал сумку. Если выдать не вышло
+-- (бот, ошибка записи), записи остаются в сумке для следующего; свой тайник и негодная наводка — расходуются.
+local spentIntel={["Это координаты вашего собственного тайника"]=true,["Наводка устарела"]=true,["Повреждённая наводка"]=true}
 local function takeIntel(p,bag)
  if not bag.StashIntel or not STALKER_INV or not STALKER_INV.GiveStashIntel then return false end
  local intel=bag.StashIntel;bag.StashIntel=nil
+ local ok,err=STALKER_INV.GiveStashIntel(p,intel)
+ if not ok and not spentIntel[err] then
+  bag.StashIntel=intel;p:ChatPrint("[КПК] Записи КПК не прочитаны: "..tostring(err or "попробуйте позже"));return false
+ end
+ if not ok then p:ChatPrint("[КПК] "..tostring(err)) end
  if bag.SetHasIntel then bag:SetHasIntel(false) end
- STALKER_INV.GiveStashIntel(p,intel)
  return true
 end
 

@@ -53,6 +53,8 @@ local function recentErrors(n)
 end
 
 function Z.SendEditorState(p,reply)
+ -- Снимок (названия и координаты полей, ошибки) — только при праве zone сейчас: его могли отозвать при открытом окне.
+ if IsValid(p) and not Z.CanEdit(p) then p.StzEditing=nil;return end
  local state={fields=entries("field"),zones=entries("zone"),ready=Z.WorldReady==true,reply=reply,stats=Z.Summary(),errors=recentErrors(5)}
  local raw=util.TableToJSON(state);local data=raw and util.Compress(raw)
  if not data or #data>60000 then return end

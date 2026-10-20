@@ -62,7 +62,8 @@ function ENT:Tick()
  local cfg=self:Config();if not cfg then return end
  local now=CurTime();self.Sleep=false
  local pos=self:GetPos();local center=pos+Vector(0,0,24)
- local reach=cfg.pull or cfg.radius
+ -- Радиус затягивания из настроек может оказаться меньше радиуса срабатывания: ищем по большему.
+ local reach=math.max(cfg.pull or 0,cfg.radius)
  local inside,near={},{}
  for _,e in ipairs(ents.FindInSphere(center,reach+40)) do
   if e~=self and (victim(e) or ((self:GetKind()=="springboard" or self:GetKind()=="vortex") and physicsProp(e))) then

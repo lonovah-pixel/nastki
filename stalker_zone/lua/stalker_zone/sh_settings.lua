@@ -1,6 +1,6 @@
 -- Настройки Зоны в общей админ-панели («Комендант» → «Настройки», консоль stalker_setting zone.<id>).
 -- Регистрация в обоих realm: клиенту нужны радиусы аномалий, дальности детекторов, видимость артефактов,
--- а энциклопедия КПК показывает урон и награды — такие значения помечены realm="shared".
+-- а энциклопедия КПК, памятка и справочник показывают урон, награды, сроки — такие значения помечены realm="shared".
 local Z=STALKER_ZONE
 local S=STALKER_SETTINGS
 if not S or not S.Bind then return end
@@ -32,7 +32,7 @@ for _,kind in ipairs(Z.AnomalyOrder) do
  else
   bind("anomaly."..kind..".cooldown",a,"cooldown",{category=A,label=name.."перезарядка, с",min=0,max=60,step=.1,decimals=1,realm="shared"})
  end
- if a.force then bind("anomaly."..kind..".force",a,"force",{category=A,label=name.."сила отброса",min=0,max=2000}) end
+ if a.force then bind("anomaly."..kind..".force",a,"force",{category=A,label=name.."сила отброса",min=0,max=2000,realm="shared"}) end
  if a.pull then
   bind("anomaly."..kind..".pull",a,"pull",{category=A,label=name.."радиус затягивания, units",min=40,max=1200,realm="shared",
    description="Должен быть больше радиуса срабатывания, иначе воронка не затягивает."})
@@ -43,7 +43,7 @@ end
 --[[ Артефакты ]]
 local R="Артефакты"
 bind("max_artifacts",cfg,"MaxArtifacts",{category=R,label="Лимит артефактов на карте",min=0,max=500})
-bind("artifact_refresh",cfg,"ArtifactRefreshMinutes",{category=R,label="Досыпать артефакты без выброса, мин",min=0,max=1440,
+bind("artifact_refresh",cfg,"ArtifactRefreshMinutes",{category=R,label="Досыпать артефакты без выброса, мин",min=0,max=1440,realm="shared",
  description="0 — артефакты появляются только после выброса."})
 bind("artifact_pickup_range",cfg,"ArtifactPickupRange",{category=R,label="Дальность подбора артефакта, units",min=40,max=400})
 bind("artifact_visible_range",cfg,"ArtifactVisibleRange",{category=R,label="С детектором артефакт проявляется ближе, units",min=50,max=3000,realm="shared"})
@@ -73,7 +73,7 @@ local sv=cfg.Survival
 bind("survival_enabled",sv,"Enabled",{category=V,label="Голод и жажда на нуле отнимают здоровье",type="bool"})
 bind("survival_tick",sv,"Tick",{category=V,label="Урон от голода и жажды раз в N секунд",min=1,max=300,onChange=retime("STALKER_ZONE.Survival")})
 bind("survival_damage",sv,"Damage",{category=V,label="Урон от голода и жажды за раз",min=0,max=100})
-bind("survival_respawn",sv,"RespawnMinimum",{category=V,label="Сытость и вода после возрождения не ниже, %",min=0,max=100})
+bind("survival_respawn",sv,"RespawnMinimum",{category=V,label="Сытость и вода после возрождения не ниже, %",min=0,max=100,realm="shared"})
 bind("survival_warn",sv,"WarnEvery",{category=V,label="Напоминать о голоде раз в N секунд",min=5,max=3600})
 bind("resist_cap",cfg,"ResistCap",{category=V,label="Предел защиты от одного типа урона, %",min=0,max=100,
  description="Суммарная защита костюма, шлема и артефактов от пуль, огня, химии и т. д. не превышает это значение."})
@@ -85,7 +85,7 @@ local D="Смерть и потери"
 local dd=cfg.DeathDrop
 bind("death_drop",dd,"Enabled",{category=D,label="Рюкзак погибшего остаётся на месте смерти",type="bool",
  description="Экипировка всегда остаётся при игроке; выпадает содержимое рюкзака."})
-bind("death_bag_lifetime",dd,"Lifetime",{category=D,label="Сумка погибшего исчезает через, с",min=30,max=7200})
+bind("death_bag_lifetime",dd,"Lifetime",{category=D,label="Сумка погибшего исчезает через, с",min=30,max=7200,realm="shared"})
 bind("death_bag_range",dd,"UseRange",{category=D,label="Дальность обыска сумки, units",min=50,max=400,realm="shared"})
 bind("ammo_persistence",cfg,"AmmoPersistence",{category=D,label="Сохранять запас патронов при выходе с сервера",type="bool",
  description="Смерть запас сбрасывает."})
