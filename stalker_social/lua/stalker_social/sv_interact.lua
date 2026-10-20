@@ -12,6 +12,8 @@ function S.ResolveTarget(ply,index,range,op)
  local t=C.Int(index,1,65535) and Entity(index)
  if not IsValid(t) or not t:IsPlayer() or t==ply then return nil,"Сталкер не найден" end
  if not t:Alive() then return nil,"Сталкер мёртв" end
+ -- API инвентаря и DarkRP состояние получателя не проверяют: без сознания ни предмет, ни деньги, ни обыск.
+ if C.Unconscious(t) then return nil,"Сталкер без сознания" end
  local r=(range or Cfg.InteractDistance)+16
  if ply:GetPos():DistToSqr(t:GetPos())>r*r then return nil,"Подойдите ближе" end
  local tr=util.TraceLine({start=ply:EyePos(),endpos=t:EyePos(),filter={ply,t},mask=MASK_SOLID_BRUSHONLY})

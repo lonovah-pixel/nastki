@@ -107,15 +107,19 @@ function CR.TempFires(sid)
  return out
 end
 -- Точка для костра: земля под прицелом (до 150 units) или под ногами чуть впереди.
+-- MASK_SOLID ловит и хитбоксы сталкеров и NPC: их макушка — не земля (костёр без физики повис бы в воздухе).
+local function ground(tr) return tr.Hit and not tr.HitSky and tr.HitNormal.z>=.7 and not (IsValid(tr.Entity) and (tr.Entity:IsPlayer() or tr.Entity:IsNPC())) end
 function CR.PlacePos(ply)
  local start=ply:EyePos();local aim=ply:GetAimVector()
  local tr=util.TraceLine({start=start,endpos=start+aim*150,filter=ply,mask=MASK_SOLID})
- local pos=tr.Hit and not tr.HitSky and tr.HitNormal.z>=.7 and tr.HitPos or nil
+ local pos=ground(tr) and tr.HitPos or nil
  if not pos then
   local fwd=Vector(aim.x,aim.y,0);if fwd:Length()<.01 then fwd=Vector(1,0,0) end;fwd:Normalize()
   local from=ply:GetPos()+fwd*48+Vector(0,0,32)
   local down=util.TraceLine({start=from,endpos=from-Vector(0,0,128),filter=ply,mask=MASK_SOLID})
-  if not down.Hit or down.HitSky or down.HitNormal.z<.7 then return nil,"Нужна ровная земля перед вами" end
+  if not ground(down) then return nil,"Нужна ровная земля перед вами" end
+  -- Запасная точка в 48 units впереди: у стены или двери она оказалась бы по ту сторону (в закрытой комнате).
+  if util.TraceLine({start=start,endpos=down.HitPos+Vector(0,0,8),filter=ply,mask=MASK_SOLID_BRUSHONLY}).Hit then return nil,"Нужна ровная земля перед вами" end
   pos=down.HitPos
  end
  if bit.band(util.PointContents(pos+Vector(0,0,4)),CONTENTS_WATER)~=0 then return nil,"В воде костёр не разжечь" end

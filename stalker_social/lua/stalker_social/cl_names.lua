@@ -52,9 +52,11 @@ end
 function S.ChatPrefix(ply,prefix)
  local nick=ply:Nick();local label=S.Label(LocalPlayer(),ply)
  if prefix==nil or prefix=="" or prefix==nick then return label end
+ -- Префикс собран на языке сервера (S.ServerPhrases), а у клиента язык может быть другим — сверяем обе фразы.
+ local server=S.ServerPhrases or {}
+ local function match(p) return p and prefix=="("..p..") "..nick and "("..p..") "..label or nil end
  for _,key in ipairs({"whisper","yell"}) do
-  local p=phrase(key)
-  if p and prefix=="("..p..") "..nick then return "("..p..") "..label end
+  local res=match(phrase(key)) or match(server[key]);if res then return res end
  end
 end
 hook.Add("OnPlayerChat","STALKER_SOCIAL.Chat",function(ply,text,teamChat,dead,prefix,col1,col2)
@@ -70,17 +72,16 @@ hook.Add("OnPlayerChat","STALKER_SOCIAL.Chat",function(ply,text,teamChat,dead,pr
  chat.AddNonParsedText(nameCol,newPrefix,textCol,": "..tostring(text))
  return true
 end)
--- /me DarkRP приходит без отправителя: «Имя действие». Ищем самое длинное имя скрытого игрока в начале строки.
+-- /me DarkRP приходит без отправителя: «Имя действие». Ищем самое длинное имя в начале строки среди всех игроков
+-- и скрываем его, только если это незнакомец: иначе /me знакомого «Иван Петров» досталось бы незнакомцу «Иван».
 function S.MeLine(text)
  if type(text)~="string" then return end
  local best,bestLen
  for _,p in ipairs(player.GetAll()) do
-  if S.Hidden(p) then
-   local nick=p:Nick()
-   if nick~="" and text:sub(1,#nick+1)==nick.." " and (not bestLen or #nick>bestLen) then best,bestLen=p,#nick end
-  end
+  local nick=p:Nick()
+  if nick~="" and text:sub(1,#nick+1)==nick.." " and (not bestLen or #nick>bestLen) then best,bestLen=p,#nick end
  end
- if best then return best,S.Label(LocalPlayer(),best)..text:sub(bestLen+1) end
+ if best and S.Hidden(best) then return best,S.Label(LocalPlayer(),best)..text:sub(bestLen+1) end
 end
 hook.Add("ChatText","STALKER_SOCIAL.Me",function(_,_,text,kind)
  if kind~="darkrp" then return end
