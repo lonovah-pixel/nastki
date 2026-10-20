@@ -36,6 +36,8 @@ if SERVER then
         net.Receive("stalker_inv."..action,function(len,ply)
             if len<48 or len>1600 or not allowed(ply,1) or not ply:Alive() or ply.StalkerLoadError then return end
             local inv=ply.StalkerInventory;if not inv then return end
+            -- В обмороке (выброс) инвентарь закрыт, но ALT+1–9 и подделанный пакет шли бы дальше: лечение, переодевание, выброс.
+            if S.IsUnconscious(ply) then S.Sync(ply,"Вы без сознания");return end
             local revision=net.ReadUInt(32);local zone,index=S.ReadLocation();local uid=net.ReadString()
             if not S.ValidLocation(zone,index) or #uid>96 then return end
             local item=S.GetAt(inv,zone,index)

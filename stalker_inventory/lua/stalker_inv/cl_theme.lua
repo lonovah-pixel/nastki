@@ -52,12 +52,18 @@ function S.DrawVignette(w,h)
     for i=1,20 do local x=(i*97)%math.max(1,w-40);surface.DrawLine(x,3,x+10+i%19,3) end
 end
 function S.Text(text,font,x,y,col,ax,ay) draw.SimpleText(text,font,x,y,col or S.C.text,ax or 0,ay or 0) end
+-- FitText зовут из Paint каждый кадр. utf8.sub GMod на каждый символ заново считает длину строки (O(n²) за вызов),
+-- а перебор длин с конца давал O(n³). Границы символов UTF-8 — один проход, длина — делением пополам.
 function S.FitText(text,font,width)
     surface.SetFont(font);text=tostring(text)
     if surface.GetTextSize(text)<=width then return text end
-    local chars=utf8.len(text) or #text
-    for n=chars,1,-1 do local s=utf8.sub(text,1,n).."…";if surface.GetTextSize(s)<=width then return s end end
-    return "…"
+    local ends={};for at,ch in text:gmatch("()([%z\1-\127\194-\244][\128-\191]*)") do ends[#ends+1]=at+#ch-1 end
+    local lo,hi=0,#ends
+    while lo<hi do
+        local mid=math.ceil((lo+hi)/2)
+        if surface.GetTextSize(text:sub(1,ends[mid]).."…")<=width then lo=mid else hi=mid-1 end
+    end
+    return lo>0 and text:sub(1,ends[lo]).."…" or "…"
 end
 function S.Wrap(text,font,width)
     surface.SetFont(font);local lines={};local line=""
