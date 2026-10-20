@@ -179,6 +179,9 @@ function E.Broadcast()
  for _,p in ipairs(player.GetHumans()) do E.SendState(p,active) end
 end
 hook.Add("PlayerInitialSpawn","STALKER_EVENTS.State",function(ply) timer.Simple(4,function() if IsValid(ply) then E.SendState(ply) end end) end)
+-- Таймер выше — запасной путь: медленный клиент к 4-й секунде ещё грузит Lua и теряет снимок (цель охоты не видит
+-- предупреждения, вкладка «События» пуста до следующей рассылки). Досылаем, когда клиент загрузился.
+hook.Add("STALKER_PlayerReady","STALKER_EVENTS.State",function(ply) E.SendState(ply) end)
 
 --[[ Раз в секунду: ход событий, истечение, планировщик ]]
 function E.Tick()

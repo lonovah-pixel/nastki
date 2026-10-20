@@ -196,15 +196,22 @@ end
 -- После шторма в каждом поле остаётся не больше обычного лимита; первыми уходят «штормовые» артефакты.
 function E.StormRelease(ev)
  local Z=STALKER_ZONE;local removed=0
+ -- Общий счёт — до удаления: удалённую сущность GMod находит до конца кадра (Remove отложен).
+ local total=Z and Z.CountArtifacts and Z.CountArtifacts() or 0
+ local function drop(e) e.StalkerStorm=nil;e:Remove();removed=removed+1 end
  if Z and Z.World and Z.Runtime and type(Z.Runtime.fields)=="table" then
   for id,rt in pairs(Z.Runtime.fields) do
    local f=Z.World.fields[id];local alive={}
    for _,e in ipairs(rt.artifacts or {}) do if IsValid(e) and not e.Taken then alive[#alive+1]=e end end
    local surplus=#alive-(f and tonumber(f.artifacts) or 0)
-   for i=#alive,1,-1 do if surplus>0 and alive[i].StalkerStorm then alive[i]:Remove();surplus=surplus-1;removed=removed+1 end end
+   for i=#alive,1,-1 do if surplus>0 and alive[i].StalkerStorm then drop(alive[i]);surplus=surplus-1 end end
   end
  end
- for _,e in ipairs(ev.data.spawned or {}) do if IsValid(e) then e.StalkerStorm=nil end end
+ -- Общий лимит карты тоже возвращается: шторм поднимал и его, а лимиты полей в сумме бывают больше.
+ local over=total-removed-(Z and Z.Config and tonumber(Z.Config.MaxArtifacts) or math.huge)
+ local list=ev.data.spawned or {}
+ for i=#list,1,-1 do if over<=0 then break end;local e=list[i];if IsValid(e) and e.StalkerStorm and not e.Taken then drop(e);over=over-1 end end
+ for _,e in ipairs(list) do if IsValid(e) then e.StalkerStorm=nil end end
  return removed
 end
 hook.Add("STALKER_ZONE_ArtifactPicked","STALKER_EVENTS.Storm",function(ply) if E.Active.storm then E.Participate(E.Active.storm,ply) end end)
@@ -244,6 +251,9 @@ E.Register({id="storm",name=info("storm","name"),description=info("storm","desc"
 E.RaidWeapons={"weapon_smg1","weapon_ar2"}
 E.RaidModel="models/combine_soldier.mdl"
 -- «Военные» — союзники отряда; покинувший группировку снова становится целью.
+-- Союзникам награда за бойцов не положена: отряд по ним не стреляет (D_LI раз в 5 с), и рейд стал бы бесплатным заработком.
+function E.RaidAlly(ply,npc) return IsValid(npc) and npc.StalkerEvent=="raid" and IsValid(ply) and C.Faction(ply)=="military" end
+hook.Add("canEarnNPCKillPay","STALKER_EVENTS.RaidAllies",function(ply,npc) if E.RaidAlly(ply,npc) then return false end end)
 local function raidAllies(ev)
  ev.data.allies=ev.data.allies or {}
  for _,p in ipairs(player.GetHumans()) do
@@ -308,6 +318,13 @@ function E.PickBountyTarget()
  local top=math.max(1,math.min(3,math.ceil(#list/3)))
  return list[math.random(top)].p
 end
+-- Соклановцы цели запоминаются с начала охоты и пополняются раз в секунду: иначе свой выходит из группировки,
+-- убивает цель за награду и вступает обратно (или цель сама выходит перед выстрелом своего).
+local function rememberClan(ev)
+ local t=ev.data.target;local fid=IsValid(t) and C.Faction(t)
+ if not fid or fid=="loner" then return end
+ for _,p in ipairs(player.GetHumans()) do local sid=C.SID(p);if sid and C.Faction(p)==fid then ev.data.clan[sid]=true end end
+end
 local function markTarget(ev)
  local t=ev.data.target;if not IsValid(t) then return end
  E.Marker(ev,"target",{pos=t:GetPos(),label="Цель: "..t:Nick(),visible={check=function(p) return p~=t end}})
@@ -319,7 +336,7 @@ function E.BountyKilled(ev,victim,attacker)
  local nick=victim:Nick()
  if IsValid(attacker) and attacker:IsPlayer() and attacker~=victim then
   local fa,fv=C.Faction(attacker),C.Faction(victim)
-  if fa and fa==fv and fa~="loner" then
+  if (fa and fa==fv and fa~="loner") or (ev.data.clan or {})[C.SID(attacker) or ""] then
    C.News(nick.." погиб от руки своего — награда за голову сгорела.","event")
   else
    E.Participate(ev,attacker)
@@ -338,6 +355,7 @@ E.Register({id="bounty",name=info("bounty","name"),description=info("bounty","de
   local target=IsValid(opts.target) and opts.target or E.PickBountyTarget()
   if not IsValid(target) then return false,"Нет подходящей цели" end
   ev.data.target=target;ev.data.sid=C.SID(target);ev.where=target:Nick();ev.info="Цель: "..target:Nick()
+  ev.data.clan={};rememberClan(ev)
   markTarget(ev)
   C.News("Охота за головой! За сталкера "..target:Nick().." назначена награда "..E.Money(Cfg.BountyReward)..
    ". Продержится "..E.FormatTime(ev.duration).." — награда "..E.Money(Cfg.BountySurvive).." достанется ему.","danger")
@@ -347,6 +365,7 @@ E.Register({id="bounty",name=info("bounty","name"),description=info("bounty","de
  think=function(ev)
   local t=ev.data.target
   if not IsValid(t) then C.News("Цель охоты покинула Зону — охота отменена.","event");E.Stop(ev.id,"done");return end
+  rememberClan(ev)
   if CurTime()>=(ev.data.nextMark or 0) then markTarget(ev) end
  end,
  stop=function(ev,reason)

@@ -141,6 +141,16 @@ local function hint(text,token)
  U.Text(text,"STALKER.Body",ScrW()/2,y+h/2,token or "text",TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
 end
 E.Hint=hint
+-- Имя владельца маячка глазами зрителя (знакомства STALKER Social): маячок, как и сумка погибшего, не выдаёт незнакомца.
+function E.OwnerLabel(ent,lp)
+ local name,sid=ent:GetOwnerName(),ent:GetOwnerSID();local SO=STALKER_SOCIAL
+ if type(SO)~="table" or sid==lp:SteamID64() then return name end
+ local owner=sid~="" and C.PlayerBySID and C.PlayerBySID(sid)
+ if IsValid(owner) and SO.Label then return SO.Label(lp,owner) end
+ local cfg=type(SO.Config)=="table" and SO.Config or {}
+ if cfg.HideNames==false or (type(SO.MyKnown)=="table" and SO.MyKnown[sid]~=nil) or (cfg.AdminsSeeAll and lp:IsAdmin()) then return name end
+ return (type(cfg.StrangerName)=="string" and cfg.StrangerName~="") and cfg.StrangerName or "Незнакомец"
+end
 function E.HintFor(ent,lp)
  if not IsValid(ent) then return end
  local class=ent:GetClass()
@@ -149,7 +159,7 @@ function E.HintFor(ent,lp)
   return "Удерживайте E — вскрыть сбитый груз"
  elseif class=="stalker_beacon" then
   local mine=ent:GetOwnerSID()==lp:SteamID64()
-  return "Маячок «"..ent:GetLabel().."» · "..ent:GetOwnerName()..(mine and "   ·   E — забрать" or "")
+  return "Маячок «"..ent:GetLabel().."» · "..E.OwnerLabel(ent,lp)..(mine and "   ·   E — забрать" or "")
  end
 end
 hook.Add("HUDPaint","STALKER_EVENTS.HUD",function()
