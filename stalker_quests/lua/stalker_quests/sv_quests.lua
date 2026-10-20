@@ -145,14 +145,16 @@ function Q.Instantiate(tpl,ply,ent)
 end
 
 -- Предложения квестодателя кэшируются на OfferMinutes: повторный разговор не перебирает награды.
+-- Кэш — по SteamID, а не на сущности игрока: иначе перезаход выдавал бы новые предложения и награды.
+Q.OfferCache=Q.OfferCache or {}
 function Q.Offers(ply,ent,force)
  local d=Q.Data(ply);if not d or not IsValid(ent) then return {} end
- local id=ent:GetNpcID()
- ply.StalkerQuestOffers=ply.StalkerQuestOffers or {}
- local cache=ply.StalkerQuestOffers[id]
+ local id,sid=ent:GetNpcID(),C.SID(ply)
+ Q.OfferCache[sid]=Q.OfferCache[sid] or {}
+ local cache=Q.OfferCache[sid][id]
  if force or not cache or cache.expires<CurTime() or cache.profile~=ent:GetProfile() then
   cache={expires=CurTime()+Cfg.OfferMinutes*60,profile=ent:GetProfile(),list={}}
-  ply.StalkerQuestOffers[id]=cache
+  Q.OfferCache[sid][id]=cache
   local pool,total={},0
   for _,tid in ipairs(Q.TemplateOrder) do
    local tpl=Q.Templates[tid]
@@ -480,17 +482,25 @@ function Q.Tick()
 end
 timer.Create("STALKER_QUESTS.Tick",1,0,function() Q.Tick() end)
 
-hook.Add("PlayerInitialSpawn","STALKER_QUESTS.Data",function(ply)
- timer.Simple(2,function()
-  if not IsValid(ply) then return end
-  local d=Q.Data(ply);if not d then return end
-  if Q.TutorialCheck then Q.TutorialCheck(ply,d) end
-  Q.Changed(ply)
- end)
-end)
+-- Профиль, обучение и пакет КПК после входа. Пакет из таймера PlayerInitialSpawn медленный клиент теряет,
+-- поэтому то же повторяется по STALKER_PlayerReady (ядро: Lua клиента уже работает).
+function Q.PlayerReady(ply)
+ if not IsValid(ply) then return end
+ local d=Q.Data(ply);if not d then return end
+ if Q.TutorialCheck then Q.TutorialCheck(ply,d) end
+ Q.Changed(ply)
+end
+hook.Add("PlayerInitialSpawn","STALKER_QUESTS.Data",function(ply) timer.Simple(2,function() Q.PlayerReady(ply) end) end)
+hook.Add("STALKER_PlayerReady","STALKER_QUESTS.Data",function(ply) Q.PlayerReady(ply) end)
 hook.Add("PlayerDisconnected","STALKER_QUESTS.Data",function(ply)
  local sid=C.SID(ply);if not sid then return end
  if Q.Players[sid] then Q.Save(ply) end
  Q.Players[sid]=nil;Q.Dirty[ply]=nil
  MK.Clear("stq."..sid..".")
+ -- Кэш предложений вышедшего живёт до истечения (перезаход не перебирает награды); истёкшие убираем.
+ local now=CurTime()
+ for s,list in pairs(Q.OfferCache) do
+  for id,c in pairs(list) do if c.expires<now then list[id]=nil end end
+  if not next(list) then Q.OfferCache[s]=nil end
+ end
 end)
