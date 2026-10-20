@@ -46,13 +46,16 @@ function C.Send(name,target,tbl)
  return true
 end
 -- Читает пакет C.Send. len — длина сообщения в битах (проверяется, если передана).
-function C.Read(len,maxBytes)
+-- maxRaw — предел распаковки. На сервере по умолчанию 64× от maxBytes: пакет игрока в 600 байт не должен
+-- разворачиваться в мегабайт JSON (обычный JSON сжимается в 3–10 раз).
+function C.Read(len,maxBytes,maxRaw)
  local size=net.ReadUInt(16)
  if size<1 or size>(maxBytes or C.MaxPacket) or (len and len~=16+size*8) then return end
  -- Предел распаковки передаём самому util.Decompress: LZMA-«бомба» в 8 КБ разворачивается в десятки мегабайт,
  -- и проверка длины после распаковки уже не спасает сервер от зависания.
- local raw=util.Decompress(net.ReadData(size) or "",C.MaxRaw)
- if not raw or #raw>C.MaxRaw then return end
+ maxRaw=math.min(C.MaxRaw,maxRaw or (SERVER and (maxBytes or C.MaxPacket)*64) or C.MaxRaw)
+ local raw=util.Decompress(net.ReadData(size) or "",maxRaw)
+ if not raw or #raw>maxRaw then return end
  local t=util.JSONToTable(raw);if type(t)=="table" then return t end
 end
 

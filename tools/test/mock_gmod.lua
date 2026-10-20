@@ -7,6 +7,8 @@
 Мир: плоская земля на высоте z=0, всё внутри карты, воды нет.
 ]]
 local ffi=require("ffi")
+-- type() ниже подменяется на версию GMod; сам мок пользуется исходной функцией Lua.
+local rawtype=type
 local M={warnings={},globalsRead={},files={}}
 local REALM=assert(os.getenv("GMOD_REALM"),"GMOD_REALM=server|client")
 local ROOT=assert(os.getenv("GMOD_ROOT"),"GMOD_ROOT=путь к репозиторию")
@@ -43,7 +45,7 @@ function string.Explode(sep,s) local out={};for part in (s..sep):gmatch("(.-)"..
 function string.Comma(n) local s=tostring(math.floor(n));local r=s:reverse():gsub("(%d%d%d)","%1 "):reverse();return (r:gsub("^ ","")) end
 function string.StartWith(s,p) return s:sub(1,#p)==p end
 function table.Copy(t,seen)
- if type(t)~="table" then return t end
+ if rawtype(t)~="table" then return t end
  seen=seen or {};if seen[t] then return seen[t] end
  local out={};seen[t]=out
  for k,v in pairs(t) do out[table.Copy(k,seen)]=table.Copy(v,seen) end
@@ -137,10 +139,10 @@ GAMEMODE={Config={}};GM=GAMEMODE
 
 --[[ Векторы, углы, цвета ]]
 local V={};V.__index=V
-function Vector(x,y,z) if type(x)=="table" then return setmetatable({x=x.x,y=x.y,z=x.z},V) end return setmetatable({x=x or 0,y=y or 0,z=z or 0},V) end
+function Vector(x,y,z) if rawtype(x)=="table" then return setmetatable({x=x.x,y=x.y,z=x.z},V) end return setmetatable({x=x or 0,y=y or 0,z=z or 0},V) end
 V.__add=function(a,b) return Vector(a.x+b.x,a.y+b.y,a.z+b.z) end
 V.__sub=function(a,b) return Vector(a.x-b.x,a.y-b.y,a.z-b.z) end
-V.__mul=function(a,b) if type(a)=="number" then a,b=b,a end;if type(b)=="number" then return Vector(a.x*b,a.y*b,a.z*b) end;return Vector(a.x*b.x,a.y*b.y,a.z*b.z) end
+V.__mul=function(a,b) if rawtype(a)=="number" then a,b=b,a end;if rawtype(b)=="number" then return Vector(a.x*b,a.y*b,a.z*b) end;return Vector(a.x*b.x,a.y*b.y,a.z*b.z) end
 V.__div=function(a,b) return Vector(a.x/b,a.y/b,a.z/b) end
 V.__unm=function(a) return Vector(-a.x,-a.y,-a.z) end
 V.__eq=function(a,b) return a.x==b.x and a.y==b.y and a.z==b.z end
@@ -165,25 +167,26 @@ color_white=Color(255,255,255);color_black=Color(0,0,0);color_transparent=Color(
 
 --[[ JSON (поведение util.TableToJSON / JSONToTable GMod) ]]
 local function isArray(t)
- local n=0;for k in pairs(t) do if type(k)~="number" or k<1 or k%1~=0 then return false end;n=n+1 end
+ local n=0;for k in pairs(t) do if rawtype(k)~="number" or k<1 or k%1~=0 then return false end;n=n+1 end
  for i=1,n do if t[i]==nil then return false end end
  return n>0
 end
 local function encode(v,out,pretty)
- local t=type(v)
+ local t=rawtype(v)
  if t=="nil" then out[#out+1]="null"
  elseif t=="boolean" then out[#out+1]=tostring(v)
  elseif t=="number" then if v~=v or v==math.huge or v==-math.huge then out[#out+1]="0" elseif v%1==0 and math.abs(v)<1e15 then out[#out+1]=string.format("%d",v) else out[#out+1]=string.format("%.14g",v) end
  elseif t=="string" then out[#out+1]='"'..v:gsub('[%c"\\]',function(c) local m={['"']='\\"',['\\']='\\\\',['\n']='\\n',['\r']='\\r',['\t']='\\t'};return m[c] or string.format("\\u%04x",c:byte()) end)..'"'
  elseif t=="table" then
   if getmetatable(v)==V then return encode(string.format("[%g %g %g]",v.x,v.y,v.z),out) end
+  if getmetatable(v)==A then return encode(string.format("{%g %g %g}",v.p,v.y,v.r),out) end
   if isArray(v) then out[#out+1]="[";for i,x in ipairs(v) do if i>1 then out[#out+1]="," end;encode(x,out) end;out[#out+1]="]"
   else
    out[#out+1]="{";local first=true
    local keys=table.GetKeys(v);table.sort(keys,function(a,b) return tostring(a)<tostring(b) end)
    for _,k in ipairs(keys) do
     local x=v[k]
-    if type(x)~="function" then
+    if rawtype(x)~="function" then
      if not first then out[#out+1]="," end;first=false
      encode(tostring(k),out);out[#out+1]=":";encode(x,out)
     end
@@ -238,12 +241,27 @@ local function decode(s)
 end
 util={}
 function util.TableToJSON(t,pretty) local out={};encode(t,out,pretty);return table.concat(out) end
-function util.JSONToTable(s) if type(s)~="string" or s=="" then return nil end;local ok,r=pcall(decode,s);if ok and type(r)=="table" then return r end end
+-- Как в GMod: строки "[x y z]" и "{p y r}" в значениях становятся Vector и Angle (так util.TableToJSON пишет векторы).
+local function revive(t)
+ for k,v in pairs(t) do
+  if rawtype(v)=="table" then revive(v)
+  elseif rawtype(v)=="string" then
+   local x,y,z=v:match("^%[(%S+) (%S+) (%S+)%]$")
+   if x and tonumber(x) and tonumber(y) and tonumber(z) then t[k]=Vector(tonumber(x),tonumber(y),tonumber(z))
+   else
+    local a,b,c=v:match("^{(%S+) (%S+) (%S+)}$")
+    if a and tonumber(a) and tonumber(b) and tonumber(c) then t[k]=Angle(tonumber(a),tonumber(b),tonumber(c)) end
+   end
+  end
+ end
+ return t
+end
+function util.JSONToTable(s) if rawtype(s)~="string" or s=="" then return nil end;local ok,r=pcall(decode,s);if ok and rawtype(r)=="table" then return revive(r) end end
 function util.Compress(s) return "Z:"..s end
-function util.Decompress(s) if type(s)=="string" and s:sub(1,2)=="Z:" then return s:sub(3) end end
+function util.Decompress(s) if rawtype(s)=="string" and s:sub(1,2)=="Z:" then return s:sub(3) end end
 function util.CRC(s) local h=0;for i=1,#s do h=(h*31+s:byte(i))%4294967296 end;return tostring(h) end
 function util.AddNetworkString(name) M.netStrings=M.netStrings or {};M.netStrings[name]=true end
-function util.IsValidModel(m) return type(m)=="string" and m:sub(-4)==".mdl" end
+function util.IsValidModel(m) return rawtype(m)=="string" and m:sub(-4)==".mdl" end
 function util.IsInWorld() return true end
 function util.PointContents() return 0 end
 function util.Effect(name,data) M.effects=(M.effects or 0)+1 end
@@ -390,7 +408,7 @@ local ENTMETA={__index=function(self,k)
  return E[k]
 end}
 NULL=setmetatable({_valid=false},{__index=function(_,k) if k=="IsValid" then return function() return false end end;return function() end end})
-function IsValid(x) return type(x)=="table" and type(x.IsValid)=="function" and x:IsValid()==true end
+function IsValid(x) return rawtype(x)=="table" and rawtype(x.IsValid)=="function" and x:IsValid()==true end
 local function newEntity(class,tbl)
  local e=setmetatable({_class=class,_valid=true,_pos=Vector(0,0,0),_ang=Angle(0,0,0),_nw={},_index=nextIndex,_class_tbl=tbl,_health=0,_maxhealth=100},ENTMETA)
  nextIndex=nextIndex+1;M.entities[#M.entities+1]=e
@@ -773,5 +791,27 @@ end
 function M.trackGlobals()
  setmetatable(_G,{__index=function(_,k) M.globalsRead[k]=(M.globalsRead[k] or 0)+1 end})
 end
+
+--[[ type() как в GMod: у Vector/Angle и сущностей свои типы. Аддоны нередко ошибаются, проверяя type(pos)=="table",
+ а в игре такая проверка для Vector ложна (includes/util.lua: type возвращает "Vector"). ]]
+M.rawtype=rawtype
+function type(v)
+ local t=rawtype(v)
+ if t~="table" then return t end
+ local mt=getmetatable(v)
+ if mt==V then return "Vector" elseif mt==A then return "Angle" end
+ if v==NULL then return "Entity" end
+ if rawget(v,"_class")~=nil and rawget(v,"_valid")~=nil then
+  if v:IsPlayer() then return "Player" end
+  local c=tostring(v._class)
+  if c:sub(1,4)=="npc_" then return "NPC" elseif c:sub(1,7)=="weapon_" or c:sub(1,4)=="gmod" and c:find("tool") then return "Weapon" end
+  return "Entity"
+ end
+ return t
+end
+local entityTypes={Entity=true,Player=true,NPC=true,Weapon=true,Vehicle=true,NextBot=true}
+function isvector(v) return type(v)=="Vector" end
+function isangle(v) return type(v)=="Angle" end
+function isentity(v) return entityTypes[type(v)]==true end
 
 return M

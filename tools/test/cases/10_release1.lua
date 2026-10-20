@@ -153,6 +153,7 @@ if SERVER then
  check(not IsValid(firstAnomaly) and count("stalker_anomaly")>=6,"аномалии сместились после выброса")
  local announced=false;for _,line in ipairs(admin._chat) do if line:find("новые артефакты") then announced=true end end
  check(announced,"игроки получили сообщение о новых артефактах")
+ hook.Remove("STEmissionCanDamage","test.noDamage")
 
  section("Вайп знает о новых данных")
  local wipe=io.open(os.getenv("GMOD_ROOT").."/stalker_survival/lua/autorun/000_stalker_wipe.lua"):read("*a")

@@ -66,8 +66,9 @@ function P.SendMessage(ply,to,text)
  if not P.DB then return false,"Хранилище сообщений недоступно" end
  if not P.ValidSID(to) then return false,"Неверный адресат" end
  if to==sid then return false,"Нельзя написать самому себе" end
- -- Мут ULX (ulx mute) запрещает и личные сообщения КПК, иначе он обходится через КПК.
- if ply:GetNWBool("ulx_muted",false)==true then return false,"Вам запрещено писать: администрация отключила вам чат" end
+ -- Мут ULX (ulx mute) и «Коменданта» запрещают и личные сообщения КПК, иначе они обходятся через КПК.
+ local A=STALKER_ADMIN
+ if ply:GetNWBool("ulx_muted",false)==true or (A and A.GetSanction and A.GetSanction(ply,"mute")) then return false,"Вам запрещено писать: администрация отключила вам чат" end
  -- Без сознания КПК закрыт на клиенте, но запрос можно отправить и в обход окна — проверяем на сервере.
  if C.Unconscious(ply) then return false,"Вы без сознания: КПК недоступен" end
  local body,err=P.CleanText(text)

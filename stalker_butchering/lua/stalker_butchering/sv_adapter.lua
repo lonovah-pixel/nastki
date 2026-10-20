@@ -16,7 +16,8 @@ function B.Claim(p)
   local r=util.JSONToTable(row.payload)
   if type(r)~='table' or not S.IsInt(r.count,0,999) then return false,'Повреждена очередь добычи' end
   local nextInv=inv
-  if r.count>0 then nextInv=S.Insert(inv,r.id,r.count,r.durability) end
+  -- Состояние в инвентаре — целое число: дробное отклонит ValidateSaved при следующем входе.
+  if r.count>0 then nextInv=S.Insert(inv,r.id,r.count,r.durability and math.floor(r.durability)) end
   if nextInv and (r.count==0 or S.Weight(nextInv)<=B.Config.MaxWeight) then inv=nextInv;accepted[#accepted+1]=row.id end
  end
  if #accepted==0 then return false,'Освободите рюкзак или уменьшите вес. Добыча сохранена: stb_claim' end
@@ -40,7 +41,7 @@ function B.Wear(p,w,cfg)
  -- Износ сохраняется только для SWEP, который принадлежит существующему инвентарю.
  for uid,owned in pairs(p.StalkerWeapons or {}) do if owned==w then
   S.CaptureEquipment(p);local inv=table.Copy(p:GetInventory());local item=S.FindUID(inv,uid)
-  if item then item.durability=math.max(0,item.durability-cfg.wear);S.Commit(p,inv) end
+  if item then item.durability=math.max(0,math.floor(item.durability-cfg.wear));S.Commit(p,inv) end
   return
  end end
 end
