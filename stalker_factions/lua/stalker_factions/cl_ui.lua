@@ -62,7 +62,9 @@ function F.ShowPage(tab)
    surface.SetDrawColor(F.C.line.r,F.C.line.g,F.C.line.b,90);for x=20,w,32 do surface.DrawLine(x,0,x,h) end;for y=20,h,32 do surface.DrawLine(0,y,w,y) end
    for id,pt in pairs(points) do local x=40+(maxx==minx and .5 or (pt.pos.x-minx)/(maxx-minx))*(w-80);local y=h-50-(maxy==miny and .5 or (pt.pos.y-miny)/(maxy-miny))*(h-90)
     local c=F.Factions[pt.owner];c=c and Color(unpack(c.color)) or F.C.muted;surface.SetDrawColor(c);surface.DrawRect(x-5,y-5,10,10);local align=x<100 and TEXT_ALIGN_LEFT or (x>w-100 and TEXT_ALIGN_RIGHT or TEXT_ALIGN_CENTER)
-    local text=pt.name;surface.SetFont("STFW.Small");if surface.GetTextSize(text)>180 then text=utf8.sub(text,1,20).."…" end
+    -- Paint каждый кадр для каждой точки: U.Fit ядра без квадратичного utf8.sub GMod.
+    local text=pt.name;local U=STALKER_STYLE
+    if U.Fit then text=U.Fit(text,"STFW.Small",180) else surface.SetFont("STFW.Small");if surface.GetTextSize(text)>180 then text=utf8.sub(text,1,20).."…" end end
     draw.SimpleText(text,"STFW.Small",x,y+10,F.FocusPoint==id and F.C.accent or F.C.text,align)
    end
   end

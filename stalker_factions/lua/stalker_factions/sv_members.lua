@@ -79,7 +79,8 @@ function F.BanJoin(leader,sid)
  if F.ActiveBan(id) then return false,"ban_slot_taken" end
  local cost=math.max(0,math.floor(F.Config.LeaderBanCost))
  if cost>0 then
-  if not leader.addMoney or not leader.getDarkRPVar then return false,"no_darkrp" end
+  -- До загрузки данных DarkRP списание не сохраняется и затирается кошельком из БД (запрет вышел бы бесплатным).
+  if not leader.addMoney or not leader.getDarkRPVar or leader.DarkRPUnInitialized then return false,"no_darkrp" end
   local money=leader:getDarkRPVar("money");if type(money)~="number" or money<cost then return false,"ban_money" end
  end
  local target=online(sid);local profile=F.Profiles[sid]
@@ -135,7 +136,9 @@ net.Receive("stfw.cmd",function(len,p)
  local a=F.ReadJSON(len,2000);if not a then return end
  local ok,err,info=F.Command(p,a)
  if ok then F.Toast(p,info or F.L("saved"),"ok") else F.Toast(p,F.L(err or "denied"),"warn") end
- F.SendState(p,{cmd=true,op=a.op,ok=ok==true,error=err})
+ -- В ответ — только известное имя команды: пакет до 2000 байт распаковывается в строку до 1 МБ,
+ -- и её повтор в снимке заставлял бы сервер заново кодировать и сжимать мегабайт на каждый запрос.
+ F.SendState(p,{cmd=true,op=type(a.op)=="string" and handlers[a.op] and a.op or nil,ok=ok==true,error=err})
 end)
 net.Receive("stfw.invite",function(len,p)
  if not F.RateOK(p,"stfw.invite",1,3) then return end

@@ -96,6 +96,8 @@ function F.UseAbility(p,ability)
  if not IsValid(p) then return false,"denied" end
  local a=F.Abilities[ability or ""];if not a or not effects[ability] then return false,"ability_unknown" end
  if not p:Alive() then return false,"dead" end
+ -- Без сознания после выброса командовать нельзя (бинд stfw_ability и чат обходили бы блокировку управления).
+ local C=STALKER_CORE;if C and C.Unconscious and C.Unconscious(p) then return false,"unconscious" end
  local ok,err=F.CanUseAbility(p,ability);if not ok then return false,err end
  local id=F.Load(p).faction
  if F.CooldownLeft(id,ability)>0 then return false,"ability_cooldown" end

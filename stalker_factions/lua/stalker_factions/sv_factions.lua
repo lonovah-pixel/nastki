@@ -69,8 +69,12 @@ function F.SetFaction(p,id,opts)
  if fee>0 then p:addMoney(-fee) end
  d=table.Copy(d);local w=table.Copy(F.World)
  if d.admissions then d.admissions[id]=nil end
- if w.leaders[d.faction]==p:SteamID64() then w.leaders[d.faction]=nil end
- d.faction=id;d.joined=true;d.joinedAt=os.time();d.frank=1
+ -- Повторное включение администратором в ту же группировку (например, чтобы заново выдать профессию)
+ -- не снимает лидерство и звание: должность снимается только при уходе из прежней группировки.
+ if not (d.joined and d.faction==id) then
+  if w.leaders[d.faction]==p:SteamID64() then w.leaders[d.faction]=nil end
+  d.faction=id;d.joined=true;d.joinedAt=os.time();d.frank=1
+ end
  if not F.Commit(w,{[p:SteamID64()]=d},"membership "..p:SteamID64().." -> "..id..(opts.invite and " (invite)" or "")) then if fee>0 then p:addMoney(fee) end;return false,"storage" end
  if F.Invites then F.Invites[p:SteamID64()]=nil end
  hook.Run("STFW_FactionChanged",p,id);F.Notify(p,"joined",F.Name(id));return true
@@ -99,7 +103,9 @@ function F.SetNPCReputation(ent,id,n)
  end
  ent:SetNW2Int("stfw_rep_"..id,n);return true
 end
-hook.Add("PlayerInitialSpawn","STFW.Load",function(p) timer.Simple(2,function() if IsValid(p) and F.Load(p) then F.Save();F.PublishProfile(p,F.Load(p));F.SendState(p) end end) end)
+hook.Add("PlayerInitialSpawn","STFW.Load",function(p) timer.Simple(2,function() if IsValid(p) and F.Load(p) then F.SaveProfile(p:SteamID64());F.PublishProfile(p,F.Load(p));F.SendState(p) end end) end)
+-- Снимок по таймеру выше медленный клиент теряет (он ещё грузит Lua): досылаем, когда клиент реально загрузился.
+hook.Add("STALKER_PlayerReady","STFW.Ready",function(p) if IsValid(p) and F.Load(p) then F.PublishProfile(p,F.Load(p));F.SendState(p) end end)
 hook.Add("PlayerSpawn","STFW.Protection",function(p)
  p.StfwProtected=CurTime()+F.Config.SpawnProtection
  -- Отдельный модуль ищет свободное место после штатного возрождения DarkRP.

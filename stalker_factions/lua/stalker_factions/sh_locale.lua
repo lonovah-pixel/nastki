@@ -64,6 +64,7 @@ local extra={
  ability_rank={"Недостаточно высокое звание для способности","Rank too low for this ability"},
  ability_unknown={"Нет такой способности","Unknown ability"},
  dead={"Действие недоступно, пока вы мертвы","Unavailable while dead"},
+ unconscious={"Действие недоступно без сознания","Unavailable while unconscious"},
  admission_required={"Не хватает денег на взнос и нет допуска лидера","Not enough money for the fee and no leader approval"},
  nojoin={"Вступление — у вербовщика группировки (E рядом с NPC) или по приглашению лидера или офицера.","Join at a faction recruiter (E near the NPC) or by a leader's invitation."},
  task={"Захват точки начинается удержанием E на её флаге (ничья точка или враг во время войны), затем удерживайте зону: +25 опыта и +10 репутации.","Hold E on a point's flag to start capturing, then hold the area: +25 XP and +10 reputation."},
