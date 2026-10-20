@@ -90,8 +90,8 @@ local function serverCommand(name,command,text,help,param)
  c:help(help)
  return c
 end
-serverCommand("emissionstart","emission_start","#A запустил выброс","Запустить выброс (право stalker_zone).")
-serverCommand("emissionstop","emission_stop","#A остановил выброс","Остановить идущий выброс (право stalker_zone).")
+serverCommand("emissionstart","emission_start","#A запустил выброс","Запустить выброс (право stalker_events).")
+serverCommand("emissionstop","emission_stop","#A остановил выброс","Остановить идущий выброс (право stalker_events).")
 serverCommand("zonerebuild","zone_rebuild","#A перестроил Зону","Перестроить аномалии и артефакты всех полей (право stalker_zone).")
 serverCommand("stalkerrestock","restock","#A пополнил склады торговцев","Пополнить склады торговцев (право stalker_zone).")
 serverCommand("stalkerevent","event_start","#A запустил событие #s","Запустить событие Зоны (право stalker_events).",{type=ULib.cmds.StringArg,hint="событие",completes=events})

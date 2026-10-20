@@ -26,7 +26,8 @@ function B.Roll(mutant,part,score,random)
  random=random or math.Rand
  local grade=B.Grade(score);local g=B.Config.Grades[grade]
  local toxic=random(0,1)<mutant.toxicity*g.toxin
- local count=g.quantity>0 and math.max(1,math.floor(part.base*mutant.yield*g.quantity)) or 0
+ -- max(1) округляет малый выход вверх, но выход 0 из настройки butcher.yield_* значит «не выдавать».
+ local count=(g.quantity>0 and part.base>0) and math.max(1,math.floor(part.base*mutant.yield*g.quantity)) or 0
  if part.id=='rare' and random(0,1)>g.rare then count=0 end
  return {grade=grade,id=B.ItemID(part.id,grade,toxic),count=count,durability=g.condition,toxic=toxic,xp=g.xp,injury=g.injury}
 end

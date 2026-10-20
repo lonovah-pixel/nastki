@@ -50,18 +50,20 @@ function B.startButchering(mutant,p,tool,partIndex)
  local rounds={}
  for i=1,B.Config.Rounds do rounds[i]={center=math.Rand(.25,.75),width=math.Clamp(.55/diff,.18,.72),speed=math.Rand(2.6,3.8)*math.sqrt(diff),offset=math.Rand(0,math.pi*2)} end
  local s={token=math.random(1,2147483646),ent=mutant,tool=w,part=part,mutant=B.Config.Mutants[d.class],rounds=rounds,hits={},start=CurTime()+B.Config.LeadIn,
-  lag=math.Clamp(p:Ping()/2000,0,.15),profile=profile}
- s.ends=s.start+B.Config.Rounds*B.Config.RoundSeconds
+  lag=math.Clamp(p:Ping()/2000,0,.15),profile=profile,seconds=B.Config.RoundSeconds}
+ -- Число разрезов и их длительность фиксируются в сессии: правка butcher.* в панели посреди разделки
+ -- не должна давать индекс без раунда (ошибка в stb.hit) и делить счёт на другое число разрезов.
+ s.ends=s.start+#rounds*s.seconds
  d.owner=p;d.consumed=true;d.parts[part.id]=true;mutant:SetNW2Int('stb_parts',15)
  p.StbAfter=CurTime()+B.Config.Cooldown;B.Sessions[p]=s;p:SetNW2Bool('stb_busy',true)
  B.Wear(p,w,cfg)
  -- Последняя единица прочности может убрать SWEP через ApplyEquipment: попытка отменится без лута.
- B.Send(p,{kind='start',token=s.token,start=s.start,ends=s.ends,rounds=rounds,seconds=B.Config.RoundSeconds,title=s.mutant.name..' / '..part.name})
+ B.Send(p,{kind='start',token=s.token,start=s.start,ends=s.ends,rounds=rounds,seconds=s.seconds,title=s.mutant.name..' / '..part.name})
  if B.Config.Debug then B.Log('start '..p:SteamID64()..' '..part.id) end
  hook.Run('STB_Started',p,mutant,part.id);return true
 end
 local function finish(p,s)
- local score=0;for i=1,B.Config.Rounds do score=score+(s.hits[i] or 0) end;score=score/B.Config.Rounds
+ local score=0;for i=1,#s.rounds do score=score+(s.hits[i] or 0) end;score=score/#s.rounds
  local result=B.Roll(s.mutant,s.part,score);result.score=score
  local profile=table.Copy(s.profile);profile.xp=math.min(1000000,profile.xp+result.xp);profile.fatigue=math.min(100,B.Fatigue(profile)+8);profile.at=os.time()
  local job={id=STALKER_INV.UID(),owner=p:SteamID64(),result=result,profile=profile,player=p,ent=s.ent}
@@ -92,10 +94,10 @@ end)
 net.Receive('stb.hit',function(len,p)
  if len~=34 or not rate(p) then return end
  local token=net.ReadUInt(32);local index=net.ReadUInt(2);local s=B.Sessions[p]
- if not s or token~=s.token or index<1 or index>B.Config.Rounds or s.hits[index]~=nil then return end
+ if not s or token~=s.token or index<1 or index>#s.rounds or s.hits[index]~=nil then return end
  if not access(p,s.ent) or p:GetActiveWeapon()~=s.tool then B.Cancel(p,'Условия разделки изменились');return end
- local t=CurTime()-s.lag-s.start-(index-1)*B.Config.RoundSeconds
- if t<0 or t>B.Config.RoundSeconds then return end
+ local t=CurTime()-s.lag-s.start-(index-1)*s.seconds
+ if t<0 or t>s.seconds then return end
  local round=s.rounds[index];s.hits[index]=B.Score(B.Marker(t,round.speed,round.offset),round.center,round.width)
  B.Send(p,{kind='hit',index=index,score=s.hits[index]})
 end)

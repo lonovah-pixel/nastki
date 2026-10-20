@@ -30,3 +30,5 @@ end)
 hook.Add("SetupMove","STEmission.Unconscious",function(p,mv)
  if E.IsUnconscious(p) then mv:SetForwardSpeed(0);mv:SetSideSpeed(0);mv:SetUpSpeed(0);mv:SetMaxSpeed(0);mv:SetMaxClientSpeed(0) end
 end)
+-- Смену оружия запрещает true (GM:PlayerSwitchWeapon): false её разрешает и вдобавок обрывает чужие запреты.
+hook.Add("PlayerSwitchWeapon","STEmission.Unconscious",function(p) if E.IsUnconscious(p) then return true end end)

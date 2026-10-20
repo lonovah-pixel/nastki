@@ -65,6 +65,10 @@ function A.Ban(p,sid,name,a)
  if IsValid(p) and (sid==p:SteamID64() or A.OfflineRank(sid)>=A.Rank(p)) then return false,"Недостаточный допуск для этой цели" end
  local limit=IsValid(p) and A.BanLimit(A.Rank(p))
  if limit and (a.minutes==0 or a.minutes>limit) then return false,"Лимит бана для вашего уровня: "..A.FormatMinutes(limit).." (бессрочно — от уровня «Комендант»)" end
+ -- Повторный бан перезаписывает запись (ULib.addBan / REPLACE) вместе с рангом автора: без проверки младший уровень
+ -- сократил бы бан старшего до минуты или «присвоил» его и снял (обход проверки разбана по рангу).
+ local current=A.GetBan(sid);if current==false then return false,"Ошибка хранилища" end
+ if current and IsValid(p) and (tonumber(current.rank) or 100)>A.Rank(p) then return false,"Бан выдан более высоким допуском" end
  local ok,err=A.StoreBan(p,sid,name,a.reason,a.minutes);if not ok then return false,err end
  -- ULib.addBan сам отключает онлайн-цель; без ULib — отключаем здесь.
  local target=player.GetBySteamID64(sid);if IsValid(target) and not A.UsesULibBans() then target:Kick("Блокировка: "..a.reason) end
